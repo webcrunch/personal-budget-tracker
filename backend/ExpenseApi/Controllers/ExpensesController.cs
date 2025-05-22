@@ -49,10 +49,52 @@ namespace ExpenseApi.Controllers
         [HttpPost]
         public async Task<ActionResult<Expense>> PostExpense(Expense expense)
         {
+            if (expense == null)
+            {
+                return BadRequest("Expense is null.");
+            }
+            if (expense.Date == default)
+            {
+                return BadRequest("Invalid or missing date. Date must be in ISO format, e.g. 2024-01-20.");
+            }
+            // Ensure Date is in UTC
+            if (expense.Date.Kind == DateTimeKind.Unspecified)
+            {
+                expense.Date = DateTime.SpecifyKind(expense.Date, DateTimeKind.Utc);
+            }
+            else if (expense.Date.Kind == DateTimeKind.Local)
+            {
+                expense.Date = expense.Date.ToUniversalTime();
+            }
             _context.Expenses.Add(expense);
             await _context.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetExpense), new { id = expense.Id }, expense);
+        }
+
+        // POST: api/Expenses/batch
+        [HttpPost("batch")]
+        public async Task<IActionResult> PostExpenses([FromBody] List<Expense> expenses)
+        {
+            if (expenses == null || !expenses.Any())
+            {
+                return BadRequest("No expenses provided.");
+            }
+            // Ensure all Dates are in UTC
+            foreach (var expense in expenses)
+            {
+                if (expense.Date.Kind == DateTimeKind.Unspecified)
+                {
+                    expense.Date = DateTime.SpecifyKind(expense.Date, DateTimeKind.Utc);
+                }
+                else if (expense.Date.Kind == DateTimeKind.Local)
+                {
+                    expense.Date = expense.Date.ToUniversalTime();
+                }
+            }
+            _context.Expenses.AddRange(expenses);
+            await _context.SaveChangesAsync();
+            return Ok(expenses);
         }
     }
 }

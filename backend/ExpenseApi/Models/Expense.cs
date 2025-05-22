@@ -7,8 +7,9 @@ namespace ExpenseApi.Models
     {
         public int Id { get; set; }
 
+        // Korrigerad: Använder 'required' för icke-nullbara egenskaper i C# 11+
         [Required]
-        public string Description { get; set; }
+        public required string Description { get; set; }
 
         [Required]
         [Range(0, double.MaxValue, ErrorMessage = "Amount must be greater than zero.")]
@@ -17,8 +18,8 @@ namespace ExpenseApi.Models
         [Required]
         public DateTime Date { get; set; }
 
+        // Korrigerad: Använder 'required' för icke-nullbara egenskaper i C# 11+
         [Required]
-        public string Category { get; set; }
+        public required string Category { get; set; }
     }
 }
-

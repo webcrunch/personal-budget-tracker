@@ -19,7 +19,7 @@ namespace ExpenseApi.Controllers
             _context = context;
             if (_context.Expenses.Any() == false)
             {
-                _context.Expenses.Add(new Expense { Description = "Initial Expense", Amount = 10.00M, Date = DateTime.Now, Category = "Uncategorized" });
+                _context.Expenses.Add(new Expense { Description = "Initial Expense", Amount = 10.00M, Date = DateTime.UtcNow, Category = "Uncategorized" });
                 _context.SaveChanges();
             }
         }
@@ -56,4 +56,3 @@ namespace ExpenseApi.Controllers
         }
     }
 }
-

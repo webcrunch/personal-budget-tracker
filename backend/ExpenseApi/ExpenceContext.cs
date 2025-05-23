@@ -5,12 +5,12 @@ namespace ExpenseApi
 {
     public class ExpenseContext : DbContext
     {
-        // Korrigerad: DbContextOptions<ExpenseContext> options
         public ExpenseContext(DbContextOptions<ExpenseContext> options)
             : base(options)
         {
         }
 
         public DbSet<Expense> Expenses { get; set; }
+        public DbSet<Category> Categories { get; set; }
     }
-} // Lade till saknad klammerparentes för namespace
+}

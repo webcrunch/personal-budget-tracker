@@ -3,6 +3,7 @@ using System;
 using ExpenseApi;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ExpenseApi.Migrations
 {
     [DbContext(typeof(ExpenseContext))]
-    partial class ExpenseContextModelSnapshot : ModelSnapshot
+    [Migration("20250523073833_AddCategoryForeignKeyToExpenses")]
+    partial class AddCategoryForeignKeyToExpenses
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

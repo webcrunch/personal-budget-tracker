@@ -3,6 +3,7 @@ using System;
 using ExpenseApi;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ExpenseApi.Migrations
 {
     [DbContext(typeof(ExpenseContext))]
-    partial class ExpenseContextModelSnapshot : ModelSnapshot
+    [Migration("20250522204016_AddCategoriesTable")]
+    partial class AddCategoriesTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -51,8 +54,9 @@ namespace ExpenseApi.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("numeric");
 
-                    b.Property<int>("CategoryId")
-                        .HasColumnType("integer");
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("Date")
                         .HasColumnType("timestamp with time zone");
@@ -63,20 +67,7 @@ namespace ExpenseApi.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CategoryId");
-
                     b.ToTable("Expenses");
-                });
-
-            modelBuilder.Entity("ExpenseApi.Models.Expense", b =>
-                {
-                    b.HasOne("ExpenseApi.Models.Category", "Category")
-                        .WithMany()
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Category");
                 });
 #pragma warning restore 612, 618
         }

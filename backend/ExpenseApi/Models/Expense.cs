@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema; // För [ForeignKey]
 
 namespace ExpenseApi.Models
 {
@@ -7,7 +8,6 @@ namespace ExpenseApi.Models
     {
         public int Id { get; set; }
 
-        // Korrigerad: Använder 'required' för icke-nullbara egenskaper i C# 11+
         [Required]
         public required string Description { get; set; }
 
@@ -18,8 +18,13 @@ namespace ExpenseApi.Models
         [Required]
         public DateTime Date { get; set; }
 
-        // Korrigerad: Använder 'required' för icke-nullbara egenskaper i C# 11+
+        // Foreign Key för Category
         [Required]
-        public required string Category { get; set; }
+        public int CategoryId { get; set; }
+
+        // Navigationsegenskap till Category-modellen
+        // Detta låter dig ladda det relaterade Category-objektet när du hämtar en Expense
+        [ForeignKey("CategoryId")]
+        public virtual Category? Category { get; set; } // Använd virtual för lazy loading (om aktiverat)
     }
 }

@@ -9,22 +9,29 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - CONNECTION_STRING=Host=db;Port=5432;Database=budget_app;Username=postgresql;Password=jagvillanvändaettbättrelösen
     depends_on:
-      - db
+      db:
+        condition: service_healthy # <--- ÄNDRA DENNA RAD
     networks:
       - app-network
 
   db:
     image: postgres:16
     environment:
-      POSTGRES_USER: postgresql
-      POSTGRES_PASSWORD: "jagvillanvändaettbättrelösen"
       POSTGRES_DB: budget_app
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: jagvillanvändaettbättrelösen
     ports:
       - "5432:5432"
-    networks:
-      - app-network
     volumes:
       - db-data:/var/lib/postgresql/data
+
+    healthcheck: # <--- LÄGG TILL DETTA AVSNITT
+      test: ["CMD-SHELL", "pg_isready -U postgres -d budget_app"] # Kontrollerar om databasen är redo
+      interval: 5s # Kontrollera var 5:e sekund
+      timeout: 5s # Ge varje kontroll 5 sekunder
+      retries: 5 # Försök 5 gånger innan det markeras som ohälsosamt
+    networks:
+      - app-network
 
   pgadmin:
     image: dpage/pgadmin4
@@ -34,7 +41,8 @@ services:
     ports:
       - "5050:80"
     depends_on:
-      - db
+      db:
+        condition: service_healthy # <--- ÄNDRA DENNA RAD
     networks:
       - app-network
     volumes:

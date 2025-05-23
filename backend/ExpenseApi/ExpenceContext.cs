@@ -12,5 +12,6 @@ namespace ExpenseApi
 
         public DbSet<Expense> Expenses { get; set; }
         public DbSet<Category> Categories { get; set; }
+        public DbSet<Budget> Budgets { get; set; } // Lade till DbSet för Budget
     }
 }

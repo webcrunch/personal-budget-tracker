@@ -1,56 +1,73 @@
-using Microsoft.EntityFrameworkCore; // Lägg till denna using-sats
+using ExpenseApi; // KORRIGERAD: Använd rätt namnområde för ExpenseContext
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
-using ExpenseApi; // Se till att namnområdet matchar ditt projekts namnområde
-using Microsoft.OpenApi.Models; // För Swagger/OpenAPI
-using Swashbuckle.AspNetCore.SwaggerGen; // Explicit using för SwaggerGen
-using Swashbuckle.AspNetCore.SwaggerUI; // Explicit using för SwaggerUI
-using System.Text.Json.Serialization; // Lägg till denna using-sats för JsonOptions
+using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.SwaggerGen;
+using Swashbuckle.AspNetCore.SwaggerUI;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Lägg till tjänster till containern.
+// Add services to the container.
 builder.Services.AddControllers()
-    .AddJsonOptions(options => // KORRIGERAD: Använd AddJsonOptions här
+    .AddJsonOptions(options =>
     {
-        // Konfigurera JSON-hantering för DateTime
-        // Detta säkerställer att inkommande datumsträngar (t.ex. "2024-01-20") tolkas som UTC.
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.Preserve;
-        // Removed invalid DateTimeKind property. If you want to ensure UTC, handle it in your model or with a custom converter.
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+        // options.JsonSerializerOptions.DateTimeKind = DateTimeKind.Utc;
     });
-// Lär dig mer om att konfigurera Swagger/OpenAPI
-builder.Services.AddEndpointsApiExplorer();
-// Installera Swashbuckle
-builder.Services.AddSwaggerGen(); // Denna metod kommer från Swashbuckle.AspNetCore
 
-// Lägg till databaskontext
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// Hämta anslutningssträngen från miljövariabler
+var connectionString = builder.Configuration.GetValue<string>("CONNECTION_STRING");
+
+// Lägg till DbContext med PostgreSQL
+// KORRIGERAD: Använd ExpenseContext istället för AppDbContext
 builder.Services.AddDbContext<ExpenseContext>(options =>
     options.UseNpgsql(connectionString));
 
+// --- LÄGG TILL CORS-KONFIGURATION HÄR ---
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", // Ge din policy ett namn
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:3000") // Tillåt anrop från din React-frontends URL
+                  .AllowAnyHeader()                     // Tillåt alla headrar
+                  .AllowAnyMethod();                    // Tillåt alla HTTP-metoder (GET, POST, PUT, DELETE, etc.)
+        });
+});
+// --- SLUT PÅ CORS-KONFIGURATION ---
+
 var app = builder.Build();
 
-// Tillämpa databasmigreringar vid uppstart
-// Detta säkerställer att databasens schema är uppdaterat när applikationen startar.
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseHttpsRedirection();
+
+// --- ANVÄND CORS-POLICYN HÄR ---
+app.UseCors("AllowFrontend");
+
+app.UseAuthorization();
+
+// Kör databasmigreringar vid uppstart
 using (var scope = app.Services.CreateScope())
 {
+    // KORRIGERAD: Använd ExpenseContext istället för AppDbContext
     var dbContext = scope.ServiceProvider.GetRequiredService<ExpenseContext>();
-    // Se till att databasen skapas och migreringar tillämpas
     dbContext.Database.Migrate();
 }
 
-// Konfigurera HTTP-förfrågningspipelinen.
-// Swagger UI aktiveras endast i utvecklingsmiljö.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger(); // Denna metod kommer från Swashbuckle.AspNetCore
-    app.UseSwaggerUI(); // Denna metod kommer från Swashbuckle.AspNetCore
-}
+app.MapControllers();
 
-app.UseHttpsRedirection(); // Omdirigerar HTTP-förfrågningar till HTTPS
-app.UseAuthorization(); // Aktiverar auktoriseringsmiddleware
-app.MapControllers(); // Mappar controller-vägar
-app.Run(); // Startar applikationen
+app.Run();

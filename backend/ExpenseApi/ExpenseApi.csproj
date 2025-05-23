@@ -14,7 +14,7 @@
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
-    <PackageReference Include="System.Text.Json" Version="9.0.5" />
+    <!-- <PackageReference Include="System.Text.Json" Version="9.0.5" /> -->
   </ItemGroup>
 
 </Project>

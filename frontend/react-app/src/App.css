@@ -1,67 +1,120 @@
-/* Ersätt delar av din App.css för en ljus dashboard-känsla */
 :root {
-  --bg-color: #f8fafc;
-  --card-bg: #ffffff;
-  --primary: #2563eb;
-  --text-main: #1e293b;
+  --sidebar-width: 260px;
+  --bg-main: #f1f5f9;
+  --sidebar-dark: #0f172a;
+  --primary: #3b82f6;
+  --text-main: #334155;
+  --white: #ffffff;
 }
 
-.App {
-  background-color: var(--bg-color);
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg-main);
   color: var(--text-main);
-  min-height: 100vh;
+}
+
+.dashboard-layout {
   display: flex;
+  min-height: 100vh;
 }
 
-.App-header {
-  background-color: var(--card-bg);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  padding: 1rem 2rem;
-  width: 100%;
+/* Sidebar */
+.sidebar {
+  width: var(--sidebar-width);
+  background-color: var(--sidebar-dark);
+  color: white;
+  padding: 2rem 0;
+  display: flex;
+  flex-direction: column;
 }
 
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+.sidebar-brand {
+  font-size: 1.5rem;
+  font-weight: bold;
   text-align: center;
+  margin-bottom: 3rem;
+  color: var(--primary);
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
+.nav-item {
+  color: #94a3b8;
+  text-decoration: none;
+  padding: 1rem 2rem;
+  transition: all 0.3s;
 }
 
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.nav-item:hover {
+  background-color: #1e293b;
+  color: white;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
+/* Main Content */
+.main-content {
+  flex: 1;
+  padding: 2rem;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.card,
+.view-container {
+  background: var(--white);
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
 }
 
-.card {
-  padding: 2em;
+/* Form & Tables */
+.expense-form {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 2rem;
 }
 
-.read-the-docs {
-  color: #888;
+.expense-form input,
+.expense-form select {
+  padding: 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.expense-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.expense-table th {
+  text-align: left;
+  border-bottom: 2px solid #f1f5f9;
+  padding: 1rem;
+}
+
+.expense-table td {
+  padding: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+button {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-delete {
+  background: #ef4444;
+  margin-left: 5px;
+}
+
+.btn-edit {
+  background: #f59e0b;
 }

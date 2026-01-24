@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
-import type { FormEvent, ChangeEvent } from 'react'; // KORRIGERAD: Använd 'import type' för FormEvent och ChangeEvent
-import './App.css'; // Bevara standard styling om du vill
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import type { FormEvent, ChangeEvent } from 'react';
+import BudgetManage from './BudgetManage';
+import BudgetCreate from './BudgetCreate';
+import './App.css';
 
-// Definiera TypeScript-gränssnitt för dina modeller
+// --- GRÄNSSNITT ---
 interface Category {
   id: number;
   name: string;
@@ -12,305 +15,195 @@ interface Expense {
   id: number;
   description: string;
   amount: number;
-  date: string; // Datumet kommer som en sträng från API:et
+  date: string;
   categoryId: number;
-  category?: Category; // Valfri, eftersom den kan vara null/undefined innan den laddats
+  category?: Category;
 }
 
-// Initialt state för en ny utgift
 const initialNewExpenseState: Omit<Expense, 'id' | 'category'> = {
   description: '',
   amount: 0,
-  date: new Date().toISOString().split('T')[0], // Standardvärde: dagens datum i YYYY-MM-DD
-  categoryId: 0, // Bör uppdateras med ett faktiskt ID från kategorilistan
+  date: new Date().toISOString().split('T')[0],
+  categoryId: 0,
 };
 
-function App() {
+const API_BASE_URL: string = import.meta.env.VITE_API_URL || 'http://localhost:5015/api';
+
+// --- KOMPONENT: UTGIFTSHANTERING ---
+function ExpenseView() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]); // Nytt state för kategorier
-  const [newExpense, setNewExpense] = useState<Omit<Expense, 'id' | 'category'>>(initialNewExpenseState);
-  const [editingExpense, setEditingExpense] = useState<Expense | null>(null); // State för den utgift som redigeras
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [newExpense, setNewExpense] = useState(initialNewExpenseState);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [submitting, setSubmitting] = useState<boolean>(false); // För att hantera laddning vid POST/PUT/DELETE
+  const [submitting, setSubmitting] = useState<boolean>(false);
 
-  const API_BASE_URL: string = import.meta.env.VITE_API_URL || 'http://localhost:5015/api';
-
-  // Effekt för att hämta utgifter och kategorier vid komponentens mount
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        setError(null);
+        const [expRes, catRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/expenses`),
+          fetch(`${API_BASE_URL}/categories`)
+        ]);
 
-        // Hämta utgifter
-        const expensesResponse = await fetch(`${API_BASE_URL}/expenses`);
-        if (!expensesResponse.ok) {
-          throw new Error(`Kunde inte hämta utgifter: ${expensesResponse.statusText}`);
-        }
-        const expensesData: Expense[] = await expensesResponse.json();
-        setExpenses(expensesData);
+        if (!expRes.ok || !catRes.ok) throw new Error("Kunde inte hämta data.");
 
-        // Hämta kategorier
-        const categoriesResponse = await fetch(`${API_BASE_URL}/categories`);
-        if (!categoriesResponse.ok) {
-          throw new Error(`Kunde inte hämta kategorier: ${categoriesResponse.statusText}`);
-        }
-        const categoriesData: Category[] = await categoriesResponse.json();
-        setCategories(categoriesData);
+        const expData = await expRes.json();
+        const catData = await catRes.json();
 
-        // Sätt initial categoryId för nya utgifter om kategorier finns
-        if (categoriesData.length > 0 && newExpense.categoryId === 0) {
-          setNewExpense(prev => ({ ...prev, categoryId: categoriesData[0].id }));
-        }
-
+        setExpenses(expData);
+        setCategories(catData);
+        if (catData.length > 0) setNewExpense(prev => ({ ...prev, categoryId: catData[0].id }));
       } catch (err: any) {
-        console.error("Fel vid hämtning av data:", err);
         setError(err.message);
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
-  }, [API_BASE_URL]); // Beroendelista för useEffect
+  }, []);
 
-  // Hanterar ändringar i formulärfälten
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    const val = name === 'amount' || name === 'categoryId' ? Number(value) : value;
     if (editingExpense) {
-      setEditingExpense(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          [name]: name === 'amount' || name === 'categoryId' ? Number(value) : value,
-        };
-      });
+      setEditingExpense(prev => prev ? { ...prev, [name]: val } : null);
     } else {
-      setNewExpense(prev => ({
-        ...prev,
-        [name]: name === 'amount' || name === 'categoryId' ? Number(value) : value,
-      }));
+      setNewExpense(prev => ({ ...prev, [name]: val }));
     }
   };
 
-  // Hanterar formulärinskick för att lägga till eller uppdatera utgift
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    setError(null);
-
-    const expenseToSubmit = editingExpense || { ...newExpense, id: 0 }; // ID är 0 för POST, annars befintligt
+    const expenseToSubmit = editingExpense || { ...newExpense, id: 0 };
 
     try {
       const url = editingExpense ? `${API_BASE_URL}/Expense/${editingExpense.id}` : `${API_BASE_URL}/Expense`;
       const method = editingExpense ? 'PUT' : 'POST';
 
-      // Konvertera datum till ISO-format för backend
-      const formattedDate = new Date(expenseToSubmit.date).toISOString();
-
       const response = await fetch(url, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...expenseToSubmit,
-          date: formattedDate // Skicka formaterat datum
-        }),
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...expenseToSubmit, date: new Date(expenseToSubmit.date).toISOString() }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.title || `HTTP error! status: ${response.status}`);
-      }
+      if (!response.ok) throw new Error("Kunde inte spara.");
 
-      // Efter lyckad POST/PUT, uppdatera listan
-      const updatedExpense = await response.json(); // POST returnerar den nya, PUT returnerar 204 No Content
       if (method === 'POST') {
-        setExpenses(prev => [...prev, updatedExpense]);
+        const saved = await response.json();
+        setExpenses(prev => [...prev, saved]);
       } else {
-        // För PUT, hämta om alla för att säkerställa att listan är synkroniserad
-        await fetchExpenses(); // Hämta om hela listan efter PUT
+        const res = await fetch(`${API_BASE_URL}/expenses`);
+        setExpenses(await res.json());
       }
 
-      setNewExpense(initialNewExpenseState); // Återställ formuläret
-      setEditingExpense(null); // Avsluta redigering
+      setNewExpense(initialNewExpenseState);
+      setEditingExpense(null);
     } catch (err: any) {
-      console.error("Fel vid sparande av utgift:", err);
       setError(err.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Funktion för att trigga omladdning av utgifter (används efter PUT/DELETE)
-  const fetchExpenses = async () => {
+  const handleDelete = async (id: number) => {
+    if (!window.confirm("Radera?")) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/expenses`);
-      if (!response.ok) {
-        throw new Error(`Kunde inte hämta utgifter: ${response.statusText}`);
-      }
-      const data: Expense[] = await response.json();
-      setExpenses(data);
-    } catch (err: any) {
-      console.error("Fel vid omladdning av utgifter:", err);
-      setError(err.message);
-    }
+      await fetch(`${API_BASE_URL}/Expense/${id}`, { method: 'DELETE' });
+      setExpenses(prev => prev.filter(e => e.id !== id));
+    } catch (err: any) { setError(err.message); }
   };
 
-  // Hanterar klick på "Redigera"
-  const handleEditClick = (expense: Expense) => {
-    setEditingExpense({ ...expense });
-    // Anpassa datumformatet för input[type="date"]
-    setEditingExpense(prev => ({
-      ...prev!,
-      date: new Date(expense.date).toISOString().split('T')[0],
-    }));
-  };
+  if (loading) return <p>Laddar...</p>;
 
-  // Hanterar klick på "Avbryt redigering"
-  const handleCancelEdit = () => {
-    setEditingExpense(null);
-    setNewExpense(initialNewExpenseState);
-  };
-
-  // Hanterar klick på "Radera"
-  const handleDeleteExpense = async (id: number) => {
-    if (!window.confirm("Är du säker på att du vill radera denna utgift?")) {
-      return;
-    }
-
-    setSubmitting(true);
-    setError(null);
-    try {
-      const response = await fetch(`${API_BASE_URL}/Expense/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      // Uppdatera state genom att filtrera bort den borttagna utgiften
-      setExpenses(prev => prev.filter(expense => expense.id !== id));
-    } catch (err: any) {
-      console.error("Fel vid radering av utgift:", err);
-      setError(err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="App">
-        <header className="App-header">
-          <p>Laddar utgifter och kategorier...</p>
-        </header>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="App">
-        <header className="App-header">
-          <p>Fel: {error}</p>
-          <p>Kontrollera att din backend körs på `{API_BASE_URL}` och att den är korrekt konfigurerad för CORS.</p>
-        </header>
-      </div>
-    );
-  }
-
-  const currentFormState = editingExpense || newExpense;
+  const currentForm = editingExpense || newExpense;
 
   return (
-    <div className="App">
-      <header className="App-header">
-        <h1>Mina Utgifter</h1>
+    <div className="view-container">
+      <section className="form-section">
+        <h2>{editingExpense ? 'Redigera' : 'Ny utgift'}</h2>
+        <form onSubmit={handleSubmit} className="expense-form">
+          <input type="text" name="description" placeholder="Beskrivning" value={currentForm.description} onChange={handleChange} required />
+          <input type="number" name="amount" placeholder="Belopp" value={currentForm.amount} onChange={handleChange} required />
+          <input type="date" name="date" value={currentForm.date} onChange={handleChange} required />
+          <select name="categoryId" value={currentForm.categoryId} onChange={handleChange} required>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <button type="submit" disabled={submitting}>{submitting ? 'Sparar...' : 'Spara'}</button>
+          {editingExpense && <button onClick={() => setEditingExpense(null)}>Avbryt</button>}
+        </form>
+      </section>
 
-        {/* Formulär för att lägga till/redigera utgifter */}
-        <div style={{ marginBottom: '20px', border: '1px solid #ccc', padding: '20px', borderRadius: '8px', maxWidth: '500px', margin: '20px auto', backgroundColor: '#f9f9f9', color: '#333' }}>
-          <h2>{editingExpense ? 'Redigera Utgift' : 'Lägg till Ny Utgift'}</h2>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <input
-              type="text"
-              name="description"
-              placeholder="Beskrivning"
-              value={currentFormState.description}
-              onChange={handleChange}
-              required
-              style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
-            />
-            <input
-              type="number"
-              name="amount"
-              placeholder="Belopp"
-              value={currentFormState.amount}
-              onChange={handleChange}
-              required
-              step="0.01"
-              style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
-            />
-            <input
-              type="date"
-              name="date"
-              value={currentFormState.date}
-              onChange={handleChange}
-              required
-              style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
-            />
-            <select
-              name="categoryId"
-              value={currentFormState.categoryId}
-              onChange={handleChange}
-              required
-              style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
-            >
-              <option value="">Välj Kategori</option>
-              {categories.map(category => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-            <button type="submit" disabled={submitting} style={{ padding: '10px 15px', borderRadius: '4px', border: 'none', backgroundColor: '#007bff', color: 'white', cursor: submitting ? 'not-allowed' : 'pointer' }}>
-              {submitting ? 'Sparar...' : (editingExpense ? 'Uppdatera Utgift' : 'Lägg till Utgift')}
-            </button>
-            {editingExpense && (
-              <button type="button" onClick={handleCancelEdit} disabled={submitting} style={{ padding: '10px 15px', borderRadius: '4px', border: 'none', backgroundColor: '#dc3545', color: 'white', cursor: submitting ? 'not-allowed' : 'pointer', marginTop: '5px' }}>
-                Avbryt Redigering
-              </button>
-            )}
-          </form>
-        </div>
-
-        {/* Lista över utgifter */}
-        <h2>Alla Utgifter</h2>
-        {expenses.length === 0 ? (
-          <p>Inga utgifter hittades. Lägg till en ovan!</p>
-        ) : (
-          <ul style={{ listStyle: 'none', padding: 0, width: '100%', maxWidth: '600px', margin: '0 auto' }}>
-            {expenses.map(expense => (
-              <li key={expense.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', padding: '10px 0', color: '#333' }}>
-                <span>
-                  {expense.date ? new Date(expense.date).toLocaleDateString() : 'Inget datum'} - {expense.description}: {expense.amount} SEK ({expense.category ? expense.category.name : 'Okategoriserad'})
-                </span>
-                <div>
-                  <button onClick={() => handleEditClick(expense)} style={{ padding: '5px 10px', borderRadius: '4px', border: 'none', backgroundColor: '#ffc107', color: 'white', cursor: 'pointer', marginRight: '5px' }}>
-                    Redigera
-                  </button>
-                  <button onClick={() => handleDeleteExpense(expense.id)} style={{ padding: '5px 10px', borderRadius: '4px', border: 'none', backgroundColor: '#dc3545', color: 'white', cursor: 'pointer' }}>
-                    Radera
-                  </button>
-                </div>
-              </li>
+      <section className="list-section">
+        <h2>Alla utgifter</h2>
+        <table className="expense-table">
+          <thead>
+            <tr>
+              <th>Datum</th>
+              <th>Beskrivning</th>
+              <th>Kategori</th>
+              <th>Belopp</th>
+              <th>Åtgärder</th>
+            </tr>
+          </thead>
+          <tbody>
+            {expenses.map(e => (
+              <tr key={e.id}>
+                <td>{new Date(e.date).toLocaleDateString()}</td>
+                <td>{e.description}</td>
+                <td>{e.category?.name || 'Övrigt'}</td>
+                <td>{e.amount} SEK</td>
+                <td>
+                  <button className="btn-edit" onClick={() => {
+                    setEditingExpense({ ...e, date: new Date(e.date).toISOString().split('T')[0] });
+                  }}>Redigera</button>
+                  <button className="btn-delete" onClick={() => handleDelete(e.id)}>Radera</button>
+                </td>
+              </tr>
             ))}
-          </ul>
-        )}
-      </header>
+          </tbody>
+        </table>
+      </section>
     </div>
+  );
+}
+
+// --- HUVUDKOMPONENT: APP ---
+function App() {
+  return (
+    <Router>
+      <div className="dashboard-layout">
+        <aside className="sidebar">
+          <div className="sidebar-brand">Smart Budget</div>
+          <nav className="sidebar-nav">
+            <Link to="/" className="nav-item">Översikt</Link>
+            <Link to="/expenses" className="nav-item">Utgifter</Link>
+            <Link to="/budgets" className="nav-item">Budgetar</Link>
+            <Link to="/import" className="nav-item">AI Import</Link>
+          </nav>
+        </aside>
+
+        <main className="main-content">
+          <Routes>
+            {/* Startsidan */}
+            <Route path="/" element={<div className="card"><h1>Välkommen!</h1><p>Här kommer din ekonomiska översikt.</p></div>} />
+
+            {/* Utgifter */}
+            <Route path="/expenses" element={<ExpenseView />} />
+
+            {/* Budgetar - Här har vi tagit bort dubbletten och använder dina riktiga komponenter */}
+            <Route path="/budgets" element={<BudgetManage />} />
+            <Route path="/budgets/create" element={<BudgetCreate />} />
+
+            {/* Import */}
+            <Route path="/import" element={<div className="card"><h1>AI-Driven Import</h1><p>Ladda upp CSV eller Excel för LLM-kategorisering.</p></div>} />
+          </Routes>
+        </main>
+      </div>
+    </Router>
   );
 }
 

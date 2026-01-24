@@ -1,3 +1,25 @@
+/* Ersätt delar av din App.css för en ljus dashboard-känsla */
+:root {
+  --bg-color: #f8fafc;
+  --card-bg: #ffffff;
+  --primary: #2563eb;
+  --text-main: #1e293b;
+}
+
+.App {
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  min-height: 100vh;
+  display: flex;
+}
+
+.App-header {
+  background-color: var(--card-bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 1rem 2rem;
+  width: 100%;
+}
+
 #root {
   max-width: 1280px;
   margin: 0 auto;
@@ -11,9 +33,11 @@
   will-change: filter;
   transition: filter 300ms;
 }
+
 .logo:hover {
   filter: drop-shadow(0 0 2em #646cffaa);
 }
+
 .logo.react:hover {
   filter: drop-shadow(0 0 2em #61dafbaa);
 }
@@ -22,6 +46,7 @@
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }

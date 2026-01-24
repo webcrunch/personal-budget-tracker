@@ -11,6 +11,7 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
+
 // Add services to the container.
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -24,7 +25,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // Hämta anslutningssträngen från miljövariabler
-var connectionString = builder.Configuration.GetValue<string>("CONNECTION_STRING");
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 // Lägg till DbContext med PostgreSQL
 // KORRIGERAD: Använd ExpenseContext istället för AppDbContext
@@ -37,7 +38,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend", // Ge din policy ett namn
         policy =>
         {
-            policy.WithOrigins("http://localhost:3000") // Tillåt anrop från din React-frontends URL
+            policy.WithOrigins("http://localhost:5173") // Tillåt anrop från din React-frontends URL, set to 3000 later
                   .AllowAnyHeader()                     // Tillåt alla headrar
                   .AllowAnyMethod();                    // Tillåt alla HTTP-metoder (GET, POST, PUT, DELETE, etc.)
         });
@@ -51,6 +52,25 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+}
+
+// Kör databasmigreringar och lägg till startdata
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<ExpenseContext>();
+    dbContext.Database.Migrate();
+
+    // Lägg till kategorier om tabellen är tom
+    if (!dbContext.Categories.Any())
+    {
+        dbContext.Categories.AddRange(
+            new ExpenseApi.Models.Category { Name = "Mat" },
+            new ExpenseApi.Models.Category { Name = "Transport" },
+            new ExpenseApi.Models.Category { Name = "Boende" },
+            new ExpenseApi.Models.Category { Name = "Nöje" }
+        );
+        dbContext.SaveChanges();
+    }
 }
 
 app.UseHttpsRedirection();

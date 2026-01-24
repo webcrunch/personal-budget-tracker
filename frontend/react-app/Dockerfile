@@ -1,5 +1,5 @@
 # Steg 1: Bygg Vite + React-applikationen
-FROM node:23-alpine AS build
+FROM node:20-alpine AS build
 
 # Sätt arbetsmappen
 WORKDIR /app
@@ -14,9 +14,14 @@ COPY package.json ./
 
 # Installera beroenden
 RUN npm install
+# Rensa npm-cachen efter installation (för att vara extra säker)
+RUN npm cache clean --force
 
 # Kopiera resten av koden
 COPY . .
+
+# Rensa gammal bygg-output och Vite-cache för att tvinga en ren build
+RUN rm -rf dist .vite
 
 # Bygg React-applikationen för produktion
 RUN npm run build

@@ -1,38 +1,38 @@
 services:
-  api:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "8080:8080"
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      # KORRIGERAD: Användarnamn "postgresql" för att matcha felmeddelandet
-      - CONNECTION_STRING=Host=db;Port=5432;Database=budget_app;Username=postgresql;Password=jagvillanvändaettbättrelösen
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - app-network
+  # api:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - ASPNETCORE_ENVIRONMENT=Development
+  #     # KORRIGERAD: Användarnamn "postgresql" för att matcha felmeddelandet
+  #     - CONNECTION_STRING=Host=db;Port=5432;Database=budget_app;Username=postgresql;Password=jagvillanvändaettbättrelösen
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+  #   networks:
+  #     - app-network
 
-  frontend_react: # <--- NY TJÄNST FÖR REACT-FRONTENDEN
-      build:
-        context: ./frontend/react-app # Sökväg till React-projektets mapp
-        dockerfile: Dockerfile
-        args: # <--- LÄGG TILL DETTA AVSNITT FÖR BYGG-ARGUMENT
-          VITE_API_URL: http://localhost:8080/api # KORRIGERAD: Nu pekar den på localhost för webbläsaren
-      container_name: budget_frontend_react
-      ports:
-      - "3000:80" # Mappa lokal port 3000 till containerns port 80 (där Nginx lyssnar)
-    # environment: # VITE_API_URL behöver inte definieras här igen för klient-sidig kod
-    #              # då den bakas in vid byggtillfället
-    #   VITE_API_URL: http://api:8080/api # Denna rad kan tas bort för renlighet
-      depends_on:
-        api:
-          condition: service_started
-      networks:
-      - app-network
-    
+  # frontend_react: # <--- NY TJÄNST FÖR REACT-FRONTENDEN
+  #     build:
+  #       context: ./frontend/react-app # Sökväg till React-projektets mapp
+  #       dockerfile: Dockerfile
+  #       args: # <--- LÄGG TILL DETTA AVSNITT FÖR BYGG-ARGUMENT
+  #         VITE_API_URL: http://localhost:8080/api # KORRIGERAD: Nu pekar den på localhost för webbläsaren
+  #     container_name: budget_frontend_react
+  #     ports:
+  #     - "3000:80" # Mappa lokal port 3000 till containerns port 80 (där Nginx lyssnar)
+  #   # environment: # VITE_API_URL behöver inte definieras här igen för klient-sidig kod
+  #   #              # då den bakas in vid byggtillfället
+  #   #   VITE_API_URL: http://api:8080/api # Denna rad kan tas bort för renlighet
+  #     depends_on:
+  #       api:
+  #         condition: service_started
+  #     networks:
+  #     - app-network
+
   db:
     image: postgres:16
     container_name: budget_db

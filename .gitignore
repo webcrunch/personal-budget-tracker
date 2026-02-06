@@ -27,3 +27,18 @@ appsettings.Development.json
 
 # Docker-related
 docker-compose.override.yml
+
+# Hemligheter
+.env
+
+# Docker-filer som inte ska med (valfritt men bra)
+*.db
+*.log
+
+# Node/React (om de ligger i roten)
+node_modules/
+dist/
+
+# .NET
+bin/
+obj/

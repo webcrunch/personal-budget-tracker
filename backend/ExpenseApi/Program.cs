@@ -1,4 +1,4 @@
-using ExpenseApi; // KORRIGERAD: Använd rätt namnområde för ExpenseContext
+using ExpenseApi;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Builder;
@@ -11,39 +11,35 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-
 // Add services to the container.
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-        // options.JsonSerializerOptions.DateTimeKind = DateTimeKind.Utc;
     });
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Hämta anslutningssträngen från miljövariabler
+// Hämta anslutningssträngen
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 // Lägg till DbContext med PostgreSQL
-// KORRIGERAD: Använd ExpenseContext istället för AppDbContext
 builder.Services.AddDbContext<ExpenseContext>(options =>
     options.UseNpgsql(connectionString));
 
-// --- LÄGG TILL CORS-KONFIGURATION HÄR ---
+// --- CORS-KONFIGURATION ---
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowFrontend", // Ge din policy ett namn
+    options.AddPolicy("AllowFrontend",
         policy =>
         {
-            policy.WithOrigins("http://localhost:5173") // Tillåt anrop från din React-frontends URL, set to 3000 later
-                  .AllowAnyHeader()                     // Tillåt alla headrar
-                  .AllowAnyMethod();                    // Tillåt alla HTTP-metoder (GET, POST, PUT, DELETE, etc.)
+            policy.WithOrigins("http://localhost:5173", "http://localhost:3002", "http://localhost:3000")
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
         });
 });
-// --- SLUT PÅ CORS-KONFIGURATION ---
 
 var app = builder.Build();
 
@@ -54,10 +50,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// Kör databasmigreringar och lägg till startdata
+// --- DATABASMIGRERINGAR & SEED DATA ---
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ExpenseContext>();
+
+    // Vänta lite på att databasen ska bli redo (viktigt i Docker)
     dbContext.Database.Migrate();
 
     // Lägg till kategorier om tabellen är tom
@@ -73,20 +71,17 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-app.UseHttpsRedirection();
+// VIKTIG ORDNING: CORS måste ligga före Authorization men efter Routing
+app.UseRouting();
 
-// --- ANVÄND CORS-POLICYN HÄR ---
+// Aktivera CORS
 app.UseCors("AllowFrontend");
 
-app.UseAuthorization();
+// Om du kör i Docker kan HTTPS ibland ställa till det om certifikat saknas, 
+// men vi behåller den om du har setup för det.
+// app.UseHttpsRedirection(); 
 
-// Kör databasmigreringar vid uppstart
-using (var scope = app.Services.CreateScope())
-{
-    // KORRIGERAD: Använd ExpenseContext istället för AppDbContext
-    var dbContext = scope.ServiceProvider.GetRequiredService<ExpenseContext>();
-    dbContext.Database.Migrate();
-}
+app.UseAuthorization();
 
 app.MapControllers();
 

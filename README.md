@@ -1,46 +1,29 @@
-# Smart Personal Budget / Utgiftshanterare
+# 💰 Smart Personal Budget Tracker
 
 ## Beskrivning
+En modern webbapplikation för att hantera personliga utgifter med kraftfull AI-integration. Applikationen hjälper användare att få kontroll över sin ekonomi genom automatiserad kategorisering och tydlig visualisering.
 
-En webbapplikation för att hantera personliga utgifter. Användare kan lägga till, kategorisera och se en översikt över sina utgifter.
+## 🚀 Funktioner
+* **Hantering av utgifter:** Lägg till, redigera och ta bort transaktioner med beskrivning och belopp.
+* **Smart Kategorisering:** Lokalt körd AI (Ollama/Mistral) för att automatiskt föreslå kategorier baserat på transaktionstext.
+* **Full Containerisering:** Hela stacken (Frontend, Backend, DB, AI) körs i Docker för enkel setup och deployment.
+* **Budgetöversikt:** Se hur mycket du spenderar per kategori i realtid.
+* **Admin-verktyg:** Inbyggd pgAdmin för enkel databashantering i utvecklingsmiljön.
 
-## Funktioner
+## 🛠 Tekniker
+* **Frontend:** [React](https://react.dev/) (Vite, TypeScript)
+* **Backend:** [.NET 9](https://dotnet.microsoft.com/) (Web API, Entity Framework Core)
+* **Databas:** [PostgreSQL](https://www.postgresql.org/)
+* **AI Engine:** [Ollama](https://ollama.com/) (Kör Mistral-modellen lokalt)
+* **Containerisering:** [Docker & Docker Compose](https://www.docker.com/)
+* **Deployment:** Ubuntu VPS med GitHub Actions (CI/CD)
 
-* Lägg till utgifter med beskrivning och belopp.
-* Kategorisera utgifter.
-* Se en lista över alla utgifter.
-* Filtrera utgifter efter kategori.
-* [Framtida] Användarautentisering.
-* [Framtida] Visuell representation av utgifter (diagram).
-* [Framtida] AI-driven kategorisering av utgifter.
+## 📦 Installation & Setup
 
-## Tekniker
+### 1. Förberedelser
+Se till att du har [Docker Desktop](https://www.docker.com/products/docker-desktop/) installerat.
 
-* Frontend: [React](https://react.dev/)
-* Backend: [.NET Core](https://dotnet.microsoft.com/)
-* Databas: [PostgreSQL](https://www.postgresql.org/)
-* Versionshantering: [Git](https://git-scm.com/)
-* CI/CD: [GitHub Actions](https://github.com/features/actions)
-* Containerisering: [Docker](https://www.docker.com/)
-* Deployment: Egen Server (Ubuntu)
-
-## Installation
-
-1.  Klona repot: `git clone https://github.com/dittanvandarnamn/personal-budget-tracker.git`
-2.  Gå till projektmappen: `cd personal-budget-tracker`
-3.  Kör Docker Compose: `docker-compose up -d`
-4.  Öppna appen i din webbläsare på `http://din-servers-ip:3000`
-
-## CI/CD
-
-Projektet har en automatiserad CI/CD-pipeline via GitHub Actions. Varje push till `main`-grenen triggar en bygg- och testprocess för både frontend och backend, samt bygger och pushar Docker-images.  Pipelinen konfigureras även för att automatiskt deploya till en egen server vid godkänd build.
-
-## Framtida förbättringar
-
-* Implementera användarautentisering.
-* Skapa en visuell representation av utgifter (diagram).
-* Integrera en AI-modell för automatisk kategorisering av utgifter.
-
-## Författare
-
-[Jarl Lindquist](https://github.com/webcrunch)
+### 2. Klona repot
+```bash
+git clone [https://github.com/dittanvandarnamn/personal-budget-tracker.git](https://github.com/dittanvandarnamn/personal-budget-tracker.git)
+cd personal-budget-tracker

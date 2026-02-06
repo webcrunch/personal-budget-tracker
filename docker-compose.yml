@@ -1,44 +1,43 @@
 services:
-  # api:
-  #   build:
-  #     context: ./backend
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - "8080:8080"
-  #   environment:
-  #     - ASPNETCORE_ENVIRONMENT=Development
-  #     # KORRIGERAD: Användarnamn "postgresql" för att matcha felmeddelandet
-  #     - CONNECTION_STRING=Host=db;Port=5432;Database=budget_app;Username=postgresql;Password=jagvillanvändaettbättrelösen
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
-  #   networks:
-  #     - app-network
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: budget_api
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      # KORRIGERAD: Använd "db" som host istället för localhost när du kör inuti Docker
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=budget_app;Username=postgresql;Password=jagvillanvändaettbättrelösen
+      # Lägg även till variabeln för Ollama så backend hittar den i nätverket
+      - OLLAMA_URL=http://ollama:11434
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
 
-  # frontend_react: # <--- NY TJÄNST FÖR REACT-FRONTENDEN
-  #     build:
-  #       context: ./frontend/react-app # Sökväg till React-projektets mapp
-  #       dockerfile: Dockerfile
-  #       args: # <--- LÄGG TILL DETTA AVSNITT FÖR BYGG-ARGUMENT
-  #         VITE_API_URL: http://localhost:8080/api # KORRIGERAD: Nu pekar den på localhost för webbläsaren
-  #     container_name: budget_frontend_react
-  #     ports:
-  #     - "3000:80" # Mappa lokal port 3000 till containerns port 80 (där Nginx lyssnar)
-  #   # environment: # VITE_API_URL behöver inte definieras här igen för klient-sidig kod
-  #   #              # då den bakas in vid byggtillfället
-  #   #   VITE_API_URL: http://api:8080/api # Denna rad kan tas bort för renlighet
-  #     depends_on:
-  #       api:
-  #         condition: service_started
-  #     networks:
-  #     - app-network
+  frontend_react:
+    build:
+      context: ./frontend/react-app
+      dockerfile: Dockerfile
+      args:
+        # VIKTIGT: Denna port måste matcha det du exponerar i "api"-tjänsten ovan
+        - VITE_API_URL=http://localhost:8080/api
+    container_name: budget_frontend_react
+    ports:
+      - "3002:80"
+    depends_on:
+      - api
+    networks:
+      - app-network
 
   db:
     image: postgres:16
     container_name: budget_db
     environment:
       POSTGRES_DB: budget_app
-      # KORRIGERAD: Användarnamn "postgresql" för att matcha felmeddelandet
       POSTGRES_USER: postgresql
       POSTGRES_PASSWORD: jagvillanvändaettbättrelösen
     ports:
@@ -46,7 +45,6 @@ services:
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      # KORRIGERAD: Användarnamn "postgresql" i healthcheck
       test: ["CMD-SHELL", "pg_isready -U postgresql -d budget_app"]
       interval: 5s
       timeout: 5s
@@ -69,6 +67,38 @@ services:
     volumes:
       - pgadmin-data:/var/lib/pgadmin
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - app-network
+
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: ollama-init
+    networks:
+      - app-network
+    depends_on:
+      - ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      "
+      until curl -s http://ollama:11434/api/tags > /dev/null; do
+        echo 'Väntar på att Ollama ska starta...'
+        sleep 2
+      done
+      echo 'Ollama är vaken! Laddar ner Mistral...'
+      OLLAMA_HOST=ollama:11434 ollama pull mistral
+      echo 'Mistral är på plats!'
+      "
+    restart: "no"
+
 networks:
   app-network:
     driver: bridge
@@ -76,3 +106,4 @@ networks:
 volumes:
   db-data:
   pgadmin-data:
+  ollama_data:

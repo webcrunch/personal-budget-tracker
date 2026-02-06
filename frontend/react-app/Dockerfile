@@ -1,42 +1,40 @@
-# Steg 1: Bygg Vite + React-applikationen
-FROM node:20-alpine AS build
+# Steg 1: Byggstadiet
+FROM node:20-alpine as build
 
-# Sätt arbetsmappen
 WORKDIR /app
 
-# Deklarera VITE_API_URL som ett bygg-argument
-ARG VITE_API_URL
-# Gör VITE_API_URL tillgänglig som miljövariabel under byggfasen
-ENV VITE_API_URL=$VITE_API_URL
-
-# Kopiera package.json och package-lock.json (eller yarn.lock)
-COPY package.json ./
-
-# Installera beroenden
+# Kopiera beroenden och installera
+COPY package*.json ./
 RUN npm install
-# Rensa npm-cachen efter installation (för att vara extra säker)
-RUN npm cache clean --force
 
-# Kopiera resten av koden
+# Kopiera resten av källkoden
 COPY . .
 
-# Rensa gammal bygg-output och Vite-cache för att tvinga en ren build
-RUN rm -rf dist .vite
+# Ta emot build-argumentet (API-URL:en)
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
 
-# Bygg React-applikationen för produktion
-RUN npm run build
+# KÖR BYGGET: Vi använder 'npx vite build' för att gå runt 
+# TypeScript-referensfelen (tsconfig.node.json-felet)
+RUN npx vite build
 
-# Steg 2: Servera de statiska filerna med Nginx
-FROM nginx:alpine
+# Steg 2: Produktionsstadiet med Nginx
+FROM nginx:stable-alpine
 
-# Kopiera Nginx-konfigurationsfilen
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Kopiera de byggda filerna från föregående steg till Nginx statiska mapp
+# Kopiera de byggda filerna från föregående steg
+# Vite bygger till mappen 'dist'
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Exponera port 80 (standard HTTP-port)
+# Lägg till en enkel Nginx-konfiguration för att hantera React Router-rutter
+RUN echo 'server { \
+    listen 80; \
+    location / { \
+        root /usr/share/nginx/html; \
+        index index.html; \
+        try_files $uri $uri/ /index.html; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
+
 EXPOSE 80
 
-# Kommando för att starta Nginx
 CMD ["nginx", "-g", "daemon off;"]

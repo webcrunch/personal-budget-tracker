@@ -1,4 +1,5 @@
 using ExpenseApi;
+using ExpenseApi.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Builder;
@@ -21,7 +22,7 @@ builder.Services.AddControllers()
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
+builder.Services.AddHttpClient<AiService>();
 // Hämta anslutningssträngen
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 

@@ -86,17 +86,8 @@ services:
       - ollama
     volumes:
       - ollama_data:/root/.ollama
-    entrypoint: ["/bin/sh", "-c"]
-    command: |
-      "
-      until curl -s http://ollama:11434/api/tags > /dev/null; do
-        echo 'Väntar på att Ollama ska starta...'
-        sleep 2
-      done
-      echo 'Ollama är vaken! Laddar ner Mistral...'
-      OLLAMA_HOST=ollama:11434 ollama pull mistral
-      echo 'Mistral är på plats!'
-      "
+    entrypoint: /bin/sh
+    command: -c "sleep 5 && OLLAMA_HOST=ollama:11434 ollama pull mistral"
     restart: "no"
 
 networks:

@@ -43,9 +43,14 @@ export default function BudgetCreate() {
                 <input type="date" value={formData.startDate} onChange={e => setFormData({ ...formData, startDate: e.target.value })} required />
                 <label>Slutdatum</label>
                 <input type="date" value={formData.endDate} onChange={e => setFormData({ ...formData, endDate: e.target.value })} required />
-                <select value={formData.categoryId} onChange={e => setFormData({ ...formData, categoryId: e.target.value })}>
-                    <option value="">Gäller alla kategorier</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <select
+                    value={formData.categoryId}
+                    onChange={e => setFormData({ ...formData, categoryId: Number(e.target.value) })}
+                >
+                    <option value="0">🤖 Låt AI gissa kategori...</option>
+                    {categories.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
                 </select>
                 <button type="submit">Spara Budget</button>
                 <button type="button" onClick={() => navigate('/budgets')} style={{ background: '#667' }}>Avbryt</button>

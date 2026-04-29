@@ -43,10 +43,15 @@ export const api = {
             body: JSON.stringify(data),
         }),
 
-        update: (id: number, data: any) => api.request(`/expenses/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(data),
-        }),
+        update: (id: number, data: any) => {
+            const payload = {
+                ...data, id, // säkerställ att id alltid finns i body 
+                date: data?.date ? new Date(data.date).toISOString() : null
+            };
+            // valfri debug-logg under utveckling: 
+            // // console.debug('PUT payload', payload); 
+            return api.request(`/expenses/${id}`, { method: 'PUT', body: JSON.stringify(payload), });
+        },
 
         delete: (id: number) => api.request(`/expenses/${id}`, {
             method: 'DELETE',

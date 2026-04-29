@@ -1,0 +1,34 @@
+services:
+  api:
+    networks:
+      - web-proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.budget-api.rule=Host(`jarllindquist.com`) &&
+        PathPrefix(`/budgettracker/api`)"
+      - "traefik.http.routers.budget-api.entrypoints=websecure"
+      - "traefik.http.routers.budget-api.tls.certresolver=myresolver"
+      - "traefik.http.middlewares.budget-strip.stripprefix.prefixes=/budgettrac\
+        ker"
+      - "traefik.http.routers.budget-api.middlewares=budget-strip"
+      - "traefik.http.services.budget-api.loadbalancer.server.port=8080"
+
+  frontend_react:
+    build:
+      args:
+        - VITE_API_URL=/budgettracker/api
+        - VITE_BASE_PATH=/budgettracker/
+    networks:
+      - web-proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.budget-ui.rule=Host(`jarllindquist.com`) &&
+        PathPrefix(`/budgettracker`)"
+      - "traefik.http.routers.budget-ui.entrypoints=websecure"
+      - "traefik.http.routers.budget-ui.tls.certresolver=myresolver"
+      - "traefik.http.routers.budget-ui.middlewares=budget-strip"
+      - "traefik.http.services.budget-ui.loadbalancer.server.port=80"
+
+networks:
+  web-proxy:
+    external: true

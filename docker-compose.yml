@@ -8,9 +8,8 @@ services:
       - "8080:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      # KORRIGERAD: Använd "db" som host istället för localhost när du kör inuti Docker
-      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=budget_app;Username=postgresql;Password=jagvillanvändaettbättrelösen
-      # Lägg även till variabeln för Ollama så backend hittar den i nätverket
+      # TIPS: Se till att namnet här matchar vad du döpt variabeln till i Program.cs
+      - CONNECTION_STRING=Host=db;Port=5432;Database=budget_app;Username=postgresql;Password=jagvillanvändaettbättrelösen
       - OLLAMA_URL=http://ollama:11434
     depends_on:
       db:
@@ -23,8 +22,10 @@ services:
       context: ./frontend/react-app
       dockerfile: Dockerfile
       args:
-        # VIKTIGT: Denna port måste matcha det du exponerar i "api"-tjänsten ovan
+        # Lokalt kör vi mot localhost, men i prod skriver vi över denna
         - VITE_API_URL=http://localhost:8080/api
+        # NYTT: Lägg till denna för att Vite-configen ska veta basen
+        - VITE_BASE_PATH=/
     container_name: budget_frontend_react
     ports:
       - "3002:80"
@@ -45,7 +46,7 @@ services:
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgresql -d budget_app"]
+      test: [ "CMD-SHELL", "pg_isready -U postgresql -d budget_app" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -53,7 +54,7 @@ services:
       - app-network
 
   pgadmin:
-    image: dpage/pgadmin4
+    image: dpage/pgadmin4:latest
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
       PGADMIN_DEFAULT_PASSWORD: admin
@@ -70,12 +71,17 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: ollama
-    ports:
-      - "11434:11434"
+    # ports:
+    #   - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
     networks:
       - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: "4" # Begränsa till t.ex. 4 kärnor
+          memory: 12G # Sätt ett tak för RAM (anpassa efter din VPS totala RAM)
 
   ollama-init:
     image: ollama/ollama:latest
@@ -86,8 +92,33 @@ services:
       - ollama
     volumes:
       - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=ollama:11434
     entrypoint: /bin/sh
-    command: -c "sleep 5 && OLLAMA_HOST=ollama:11434 ollama pull mistral"
+    command:
+      - "-c"
+      - |
+        echo "Väntar på att Ollama-servern ska svara..."
+        until ollama list > /dev/null 2>&1; do
+          sleep 2
+        done
+
+        echo "Ollama är vaken! Laddar ner modeller..."
+
+        echo "Hanterar Mistral..."
+        ollama pull mistral
+
+        echo "Hanterar Phi-3..."
+        ollama pull phi3
+
+        echo "Hanterar Mixtral..."
+        ollama pull mixtral
+
+        echo "Hanterar gemma 4"
+        ollama pull gemma4:e4b
+
+
+        echo "Alla modeller är klara!"
     restart: "no"
 
 networks:

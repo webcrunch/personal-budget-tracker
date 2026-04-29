@@ -13,14 +13,22 @@ public class AiService
         _httpClient.BaseAddress = new Uri("http://ollama:11434/");
     }
 
-    public async Task<string> CategorizeExpenseAsync(string description)
+    public async Task<string> CategorizeExpenseAsync(string description, List<string> availableCategories)
     {
         try
         {
+            // 1. Slå ihop listan till en sträng: "Mat, Transport, Husdjur, Abonnemang..."
+            string categoriesString = string.Join(", ", availableCategories);
+
+            // mistral
+
             var requestBody = new
             {
-                model = "mistral",
-                prompt = $"Kategorisera denna utgift: '{description}'. Svara ENDAST med ett av dessa ord: Mat, Transport, Boende, Nöje, Övrigt.",
+                model = "gemma4:e4b",
+                // 2. Använd den dynamiska strängen i prompten
+                prompt = $"Du är en budget-assistent. Kategorisera utgiften: '{description}'. " +
+                 $"Du får ENDAST svara med ett av följande kategorinamn: {categoriesString}. " +
+                 $"Om inget passar exakt, välj det som är närmast eller 'Övrigt'. Svara bara med ordet.",
                 stream = false
             };
 
@@ -29,7 +37,9 @@ public class AiService
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<OllamaResponse>();
-                return result?.response?.Trim() ?? "Övrigt";
+                // 3. Städa svaret (ibland lägger AI till punkter eller mellanslag)
+                var cleanResponse = result?.response?.Trim().TrimEnd('.');
+                return cleanResponse ?? "Övrigt";
             }
         }
         catch (Exception ex)
@@ -37,7 +47,7 @@ public class AiService
             Console.WriteLine($"AI-fel: {ex.Message}");
         }
 
-        return "Övrigt"; // Fallback om AI:n är upptagen eller nere
+        return "Övrigt";
     }
 }
 

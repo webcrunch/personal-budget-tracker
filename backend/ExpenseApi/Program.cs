@@ -9,6 +9,7 @@ using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using Swashbuckle.AspNetCore.SwaggerUI;
 using System.Text.Json.Serialization;
+using System.Linq; // Viktigt för att kunna använda .Any() och .Count()
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,9 +23,15 @@ builder.Services.AddControllers()
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Registrera AiService så att Controllern kan använda den
 builder.Services.AddHttpClient<AiService>();
-// Hämta anslutningssträngen
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+// Hämta anslutningssträngen. 
+// GetValue kollar först efter miljövariabeln CONNECTION_STRING (som vi har i docker-compose.yml), 
+// fallback till GetConnectionString för lokalt bruk.
+var connectionString = builder.Configuration.GetValue<string>("CONNECTION_STRING")
+                    ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
 // Lägg till DbContext med PostgreSQL
 builder.Services.AddDbContext<ExpenseContext>(options =>
@@ -51,25 +58,37 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// --- DATABASMIGRERINGAR & SEED DATA ---
+// --- DATABASMIGRERINGAR & SMART SEED DATA ---
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ExpenseContext>();
 
-    // Vänta lite på att databasen ska bli redo (viktigt i Docker)
+    // Kör migreringar (Skapar tabeller om de inte finns)
     dbContext.Database.Migrate();
 
-    // Lägg till kategorier om tabellen är tom
-    if (!dbContext.Categories.Any())
+    // En lista på alla kategorier vi vill ha i systemet
+    var desiredCategories = new[]
     {
-        dbContext.Categories.AddRange(
-            new ExpenseApi.Models.Category { Name = "Mat" },
-            new ExpenseApi.Models.Category { Name = "Transport" },
-            new ExpenseApi.Models.Category { Name = "Boende" },
-            new ExpenseApi.Models.Category { Name = "Nöje" }
-        );
-        dbContext.SaveChanges();
+        "Boende", "El & Värme", "Försäkringar", "Abonnemang",
+        "Transport", "Drivmedel", "Bilunderhåll",
+        "Livsmedel", "Uteätande", "Systembolaget",
+        "Kläder & Skor", "Elektronik", "Nöje", "Husdjur", "Hobby",
+        "Hälsa & Apotek", "Träning",
+        "Sparande", "Lån & Räntor", "Övrigt", "Mat" // "Mat" är kvar ifall du har gamla utgifter kopplade till den
+    };
+
+    // Kontrollera varje kategori i listan. Om den INTE finns i databasen, lägg till den!
+    // På detta sätt slipper vi dubbletter och ser till att du får hela listan.
+    foreach (var catName in desiredCategories)
+    {
+        if (!dbContext.Categories.Any(c => c.Name == catName))
+        {
+            dbContext.Categories.Add(new ExpenseApi.Models.Category { Name = catName });
+        }
     }
+
+    // Spara alla nyligen tillagda kategorier till databasen
+    dbContext.SaveChanges();
 }
 
 // VIKTIG ORDNING: CORS måste ligga före Authorization men efter Routing
@@ -77,10 +96,6 @@ app.UseRouting();
 
 // Aktivera CORS
 app.UseCors("AllowFrontend");
-
-// Om du kör i Docker kan HTTPS ibland ställa till det om certifikat saknas, 
-// men vi behåller den om du har setup för det.
-// app.UseHttpsRedirection(); 
 
 app.UseAuthorization();
 

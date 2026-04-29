@@ -1,0 +1,115 @@
+name: Budget Tracker Build and Deploy
+
+on:
+  push:
+    branches: [ "main" ] # Triggas nu bara vid push till main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Import Secrets from Vault
+        uses: hashicorp/vault-action@v3
+        with:
+          url: https://vault.jarllindquist.com
+          method: approle
+          roleId: ${{ secrets.VAULT_ROLE_ID }}
+          secretId: ${{ secrets.VAULT_SECRET_ID }}
+          secrets: |
+            kv/data/server-deploy DOCKER_USERNAME | DOCKER_USERNAME ;
+            kv/data/server-deploy DOCKER_PASSWORD | DOCKER_PASSWORD
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_PASSWORD }}
+
+      # Bygg och pusha API
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            passwordnotsafe/budget-api:latest
+            passwordnotsafe/budget-api:${{ github.sha }}
+
+      # Bygg och pusha Frontend (Notera build-args för sub-path)
+      - name: Build and push Frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend/react-app
+          push: true
+          build-args: |
+            VITE_API_URL=/budgettracker/api
+            VITE_BASE_PATH=/budgettracker/
+          tags: |
+            passwordnotsafe/budget-frontend:latest
+            passwordnotsafe/budget-frontend:${{ github.sha }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Import Secrets from Vault
+        uses: hashicorp/vault-action@v3
+        with:
+          url: https://vault.jarllindquist.com
+          method: approle
+          roleId: ${{ secrets.VAULT_ROLE_ID }}
+          secretId: ${{ secrets.VAULT_SECRET_ID }}
+          secrets: |
+            kv/data/server-deploy SSH_HOST | SERVER_HOST ;
+            kv/data/server-deploy SSH_USERNAME | SERVER_USER ;
+            kv/data/server-deploy SERVER_PORT | SERVER_PORT ;
+            kv/data/server-deploy SSH_PRIVATE_KEY | SERVER_PRIVATE_KEY ;
+            kv/data/server-deploy DOCKER_USERNAME | DOCKER_USERNAME ;
+            kv/data/server-deploy DOCKER_PASSWORD | DOCKER_PASSWORD ;
+            kv/data/budget-tracker db_pass | DB_PASS ;
+            kv/data/budget-tracker db_user | DB_USER ;
+            kv/data/budget-tracker db_name | DB_NAME
+
+      - name: Copy docker-compose files to VPS
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ env.SERVER_HOST }}
+          username: ${{ env.SERVER_USER }}
+          key: ${{ env.SERVER_PRIVATE_KEY }}
+          port: ${{ env.SERVER_PORT }}
+          source: "docker-compose.yml,docker-compose.prod.yml"
+          target: "/home/repos/budget-tracker"
+
+      - name: Execute Deploy Commands
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ env.SERVER_HOST }}
+          username: ${{ env.SERVER_USER }}
+          key: ${{ env.SERVER_PRIVATE_KEY }}
+          port: ${{ env.SERVER_PORT }}
+          envs: DOCKER_USERNAME,DOCKER_PASSWORD,DB_USER,DB_PASS,DB_NAME
+          script: |
+            mkdir -p /home/repos/budget-tracker
+            cd /home/repos/budget-tracker
+
+            # Generera .env fil specifikt för Budget Tracker
+            echo "DOCKER_USERNAME=passwordnotsafe" > .env
+            echo "CONNECTION_STRING=Host=db;Port=5432;Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASS}" >> .env
+            echo "OLLAMA_URL=http://ollama:11434" >> .env
+
+            # För Postgres-containern
+            echo "POSTGRES_DB=${DB_NAME}" >> .env
+            echo "POSTGRES_USER=${DB_USER}" >> .env
+            echo "POSTGRES_PASSWORD=${DB_PASS}" >> .env
+
+            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate 
+            docker image prune -f

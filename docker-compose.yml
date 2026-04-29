@@ -8,7 +8,6 @@ services:
       - "8080:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      # TIPS: Se till att namnet här matchar vad du döpt variabeln till i Program.cs
       - CONNECTION_STRING=Host=db;Port=5432;Database=budget_app;Username=postgresql;Password=jagvillanvändaettbättrelösen
       - OLLAMA_URL=http://ollama:11434
     depends_on:
@@ -22,9 +21,7 @@ services:
       context: ./frontend/react-app
       dockerfile: Dockerfile
       args:
-        # Lokalt kör vi mot localhost, men i prod skriver vi över denna
         - VITE_API_URL=http://localhost:8080/api
-        # NYTT: Lägg till denna för att Vite-configen ska veta basen
         - VITE_BASE_PATH=/
     container_name: budget_frontend_react
     ports:
@@ -55,6 +52,7 @@ services:
 
   pgadmin:
     image: dpage/pgadmin4:latest
+    container_name: budget_pgadmin
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
       PGADMIN_DEFAULT_PASSWORD: admin
@@ -71,8 +69,6 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: ollama
-    # ports:
-    #   - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
     networks:
@@ -80,8 +76,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "4" # Begränsa till t.ex. 4 kärnor
-          memory: 12G # Sätt ett tak för RAM (anpassa efter din VPS totala RAM)
+          cpus: "4"
+          memory: 12G
 
   ollama-init:
     image: ollama/ollama:latest
@@ -102,28 +98,16 @@ services:
         until ollama list > /dev/null 2>&1; do
           sleep 2
         done
-
-        echo "Ollama är vaken! Laddar ner modeller..."
-
-        echo "Hanterar Mistral..."
-        ollama pull mistral
-
-        echo "Hanterar Phi-3..."
-        ollama pull phi3
-
-        echo "Hanterar Mixtral..."
-        ollama pull mixtral
-
-        echo "Hanterar gemma 4"
+        echo "Ollama är vaken! Laddar ner Gemma 4..."
         ollama pull gemma4:e4b
-
-
         echo "Alla modeller är klara!"
     restart: "no"
 
 networks:
   app-network:
     driver: bridge
+  traefik-net:
+    external: true
 
 volumes:
   db-data:

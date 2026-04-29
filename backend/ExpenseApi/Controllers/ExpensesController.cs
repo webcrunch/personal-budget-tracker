@@ -110,27 +110,47 @@ public class ExpensesController : ControllerBase
             return BadRequest("Id i URL och body matchar inte.");
         }
 
-        // Validera modelstate om du använder DTO/valideringar
         if (!ModelState.IsValid)
         {
             return BadRequest(ModelState);
         }
 
-        // Kontrollera att posten finns
+        // 1. Kontrollera att posten finns i databasen
         var existing = await _context.Expenses.FindAsync(id);
         if (existing == null)
         {
             return NotFound();
         }
 
-        // Uppdatera fält (kopiera bara de fält du vill tillåta att uppdateras)
+        // 2. AI-LOGIK FÖR PUT: Om CategoryId är 0, låt AI:n gissa igen
+        if (expense.CategoryId == 0)
+        {
+            var categoryNames = await _context.Categories.Select(c => c.Name).ToListAsync();
+            var aiCategoryName = await _aiService.CategorizeExpenseAsync(expense.Description, categoryNames);
+
+            var category = await _context.Categories
+                                         .FirstOrDefaultAsync(c => c.Name == aiCategoryName)
+                           ?? await _context.Categories.FirstOrDefaultAsync(c => c.Name == "Övrigt");
+
+            if (category != null)
+            {
+                expense.CategoryId = category.Id;
+            }
+        }
+
+        // 3. SÄKERHETSKONTROLL: Kontrollera att CategoryId faktiskt existerar i DB
+        // Detta förhindrar "violates foreign key constraint"-felet
+        var categoryExists = await _context.Categories.AnyAsync(c => c.Id == expense.CategoryId);
+        if (!categoryExists)
+        {
+            return BadRequest($"Kategori med ID {expense.CategoryId} finns inte.");
+        }
+
+        // 4. Uppdatera fälten
         existing.Amount = expense.Amount;
         existing.Description = expense.Description;
         existing.Date = expense.Date;
         existing.CategoryId = expense.CategoryId;
-
-        // Om du vill ladda kategoriobjektet efter uppdatering:
-        // await _context.Entry(existing).Reference(e => e.Category).LoadAsync();
 
         try
         {
@@ -143,12 +163,11 @@ public class ExpensesController : ControllerBase
             throw;
         }
 
-        // Returnera NoContent enligt REST‑konventioner för PUT
         return NoContent();
     }
 
 
-    // --- HÄR VAR FELET FIXAT ---
+
     [HttpPost]
     public async Task<ActionResult<Expense>> PostExpense(Expense expense)
     {

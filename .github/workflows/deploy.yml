@@ -45,8 +45,8 @@ jobs:
           context: ./frontend/react-app
           push: true
           build-args: |
-            VITE_API_URL=/budgettracker/api
-            VITE_BASE_PATH=/budgettracker/
+            VITE_API_URL=/api
+            VITE_BASE_PATH=/
           tags: |
             passwordnotsafe/budget-frontend:latest
             passwordnotsafe/budget-frontend:${{ github.sha }}

@@ -102,6 +102,7 @@ jobs:
             echo "DOCKER_USERNAME=passwordnotsafe" > .env
             echo "CONNECTION_STRING=Host=db;Port=5432;Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASS}" >> .env
             echo "OLLAMA_URL=http://ollama:11434" >> .env
+            echo "OLLAMA_MODEL=llama3.2" >> .env
 
             # För Postgres-containern
             echo "POSTGRES_DB=${DB_NAME}" >> .env

@@ -10,6 +10,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - CONNECTION_STRING=Host=db;Port=5432;Database=budget_app;Username=postgresql;Password=jagvillanvändaettbättrelösen
       - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
     depends_on:
       db:
         condition: service_healthy
@@ -94,13 +95,16 @@ services:
     command:
       - "-c"
       - |
-        echo "Väntar på att Ollama-servern ska svara..."
-        until ollama list > /dev/null 2>&1; do
-          sleep 2
-        done
-        echo "Ollama är vaken! Laddar ner Gemma 4..."
+        echo "Väntar på servern..."
+        until ollama list > /dev/null 2>&1; do sleep 2; done
+
+        echo "Laddar ner Llama 3.2 (för snabbhet)..."
+        ollama pull llama3.2
+
+        echo "Laddar ner Gemma 4 (för kvalitet)..."
         ollama pull gemma4:e4b
-        echo "Alla modeller är klara!"
+
+        echo "Alla modeller är redo!"
     restart: "no"
 
 networks:

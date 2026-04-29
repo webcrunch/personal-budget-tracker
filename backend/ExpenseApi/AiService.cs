@@ -1,34 +1,38 @@
 using System.Net.Http.Json;
+using Microsoft.Extensions.Configuration;
 
 namespace ExpenseApi.Services;
 
 public class AiService
 {
     private readonly HttpClient _httpClient;
+    private readonly string _modelName;
 
-    public AiService(HttpClient httpClient)
+    public AiService(HttpClient httpClient, IConfiguration configuration)
     {
         _httpClient = httpClient;
-        // Vi använder containernamnet 'ollama' som host
-        _httpClient.BaseAddress = new Uri("http://ollama:11434/");
+
+        // Vi läser in URL och Modell från miljövariabler/konfiguration
+        // Default-värden om variablerna saknas:
+        var baseUrl = configuration["OLLAMA_URL"] ?? "http://ollama:11434/";
+        _modelName = configuration["OLLAMA_MODEL"] ?? "llama3.2";
+
+        _httpClient.BaseAddress = new Uri(baseUrl);
     }
 
     public async Task<string> CategorizeExpenseAsync(string description, List<string> availableCategories)
     {
         try
         {
-            // 1. Slå ihop listan till en sträng: "Mat, Transport, Husdjur, Abonnemang..."
+            // Slå ihop listan till en sträng för prompten
             string categoriesString = string.Join(", ", availableCategories);
-
-            // mistral
 
             var requestBody = new
             {
-                model = "gemma4:e4b",
-                // 2. Använd den dynamiska strängen i prompten
+                model = _modelName,
                 prompt = $"Du är en budget-assistent. Kategorisera utgiften: '{description}'. " +
-                 $"Du får ENDAST svara med ett av följande kategorinamn: {categoriesString}. " +
-                 $"Om inget passar exakt, välj det som är närmast eller 'Övrigt'. Svara bara med ordet.",
+                         $"Du får ENDAST svara med ett av följande kategorinamn: {categoriesString}. " +
+                         $"Om inget passar exakt, välj det som är närmast eller 'Övrigt'. Svara bara med ordet.",
                 stream = false
             };
 
@@ -37,14 +41,18 @@ public class AiService
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<OllamaResponse>();
-                // 3. Städa svaret (ibland lägger AI till punkter eller mellanslag)
+
+                // Städa svaret (trimma bort whitespaces och eventuella avslutande punkter)
                 var cleanResponse = result?.response?.Trim().TrimEnd('.');
-                return cleanResponse ?? "Övrigt";
+
+                return string.IsNullOrEmpty(cleanResponse) ? "Övrigt" : cleanResponse;
             }
+
+            Console.WriteLine($"Ollama svarade med felkod: {response.StatusCode}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"AI-fel: {ex.Message}");
+            Console.WriteLine($"AI-fel vid kategorisering: {ex.Message}");
         }
 
         return "Övrigt";

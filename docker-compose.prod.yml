@@ -1,19 +1,19 @@
 services:
   api:
-    image: passwordnotsafe/budget-api:latest # Vi lägger till image även för API!
+    image: passwordnotsafe/budget-api:latest
     networks:
       - traefik-net
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.budget-api.rule=Host(`jarllindquist.com`) &&
-        PathPrefix(`/budgettracker/api`)"
+      # API:et svarar på budgettracker.jarllindquist.com/api
+      - "traefik.http.routers.budget-api.rule=Host(`budgettracker.jarllindquist\
+        .com`) && PathPrefix(`/api`)"
       - "traefik.http.routers.budget-api.entrypoints=websecure"
       - "traefik.http.routers.budget-api.tls.certresolver=myresolver"
-      - "traefik.http.middlewares.budget-strip.stripprefix.prefixes=/budgettrac\
-        ker"
-      - "traefik.http.routers.budget-api.middlewares=budget-strip"
+      - "traefik.http.routers.budget-api.priority=20"
       - "traefik.http.services.budget-api.loadbalancer.server.port=8080"
-      - "traefik.http.routers.budget-api.priority=20" # API får högre prioritet än UI
+      # Om ditt API förväntar sig att anropen börjar på /api (t.ex. /api/users), 
+      # så behövs ingen middleware här.
 
   frontend_react:
     image: passwordnotsafe/budget-frontend:latest
@@ -21,12 +21,11 @@ services:
       - traefik-net
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.budget-api.rule=Host(`jarllindquist.com`) &&
-        PathPrefix(`/budgettracker/api`)"
-      - "traefik.http.middlewares.budget-strip.stripprefix.prefixes=/budgettrac\
-        ker"
+      # UI:t äger hela subdomänen
+      - "traefik.http.routers.budget-ui.rule=Host(`budgettracker.jarllindquist.\
+        com`)"
       - "traefik.http.routers.budget-ui.entrypoints=websecure"
       - "traefik.http.routers.budget-ui.tls.certresolver=myresolver"
-      - "traefik.http.routers.budget-ui.middlewares=budget-strip"
-      - "traefik.http.services.budget-ui.loadbalancer.server.port=80"
       - "traefik.http.routers.budget-ui.priority=10"
+      - "traefik.http.services.budget-ui.loadbalancer.server.port=80"
+      # Ingen middleware behövs längre eftersom vi inte har någon sub-path!

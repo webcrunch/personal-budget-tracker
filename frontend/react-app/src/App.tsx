@@ -1,16 +1,15 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import BudgetManage from './BudgetManage';
 import BudgetCreate from './BudgetCreate';
-import ExpensePage from './pages/ExpensePage'; // Din nya fina fil
+import ExpensePage from './pages/ExpensePage';
 import ImportPage from './pages/ImportPages';
 import './App.css';
 
-// --- HUVUDKOMPONENT: APP ---
 function App() {
   return (
     <Router>
       <div className="dashboard-layout">
-        {/* Sidebaren behåller vi här tills vidare */}
+        {/* SIDEBAR */}
         <aside className="sidebar">
           <div className="sidebar-brand">Smart Budget</div>
           <nav className="sidebar-nav">
@@ -21,26 +20,25 @@ function App() {
           </nav>
         </aside>
 
+        {/* MAIN CONTENT AREA med "Parent Boxing" */}
         <main className="main-content">
-          <Routes>
-            {/* Startsidan */}
-            <Route path="/" element={
-              <div className="card">
-                <h1>Välkommen!</h1>
-                <p>Här kommer din ekonomiska översikt.</p>
-              </div>
-            } />
+          <div className="content-window">
+            <Routes>
+              <Route path="/" element={
+                <div className="view-container"> {/* <- Lägg till denna wrapper */}
+                  <div className="card">
+                    <h1 style={{ marginTop: 0 }}>Välkommen!</h1>
+                    <p style={{ color: '#64748b' }}>Här kommer din ekonomiska översikt.</p>
+                  </div>
+                </div>
+              } />
 
-            {/* Utgifter - Nu använder vi den utbrutna komponenten */}
-            <Route path="/expenses" element={<ExpensePage />} />
-
-            {/* Budgetar */}
-            <Route path="/budgets" element={<BudgetManage />} />
-            <Route path="/budgets/create" element={<BudgetCreate />} />
-
-            {/* Import - Här kan vi skapa en ImportPage senare */}
-            <Route path="/import" element={<ImportPage />} />
-          </Routes>
+              <Route path="/expenses" element={<ExpensePage />} />
+              <Route path="/budgets" element={<BudgetManage />} />
+              <Route path="/budgets/create" element={<BudgetCreate />} />
+              <Route path="/import" element={<ImportPage />} />
+            </Routes>
+          </div>
         </main>
       </div>
     </Router>

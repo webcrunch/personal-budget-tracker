@@ -2,7 +2,7 @@ name: Budget Tracker Build and Deploy
 
 on:
   push:
-    branches: [ "main" ] # Triggas nu bara vid push till main
+    branches: ["main"] # Triggas nu bara vid push till main
 
 jobs:
   build:
@@ -99,6 +99,7 @@ jobs:
             cd /home/repos/budget-tracker
 
             # Generera .env fil specifikt för Budget Tracker
+            echo "ASPNETCORE_ENVIRONMENT=Production" >> .env
             echo "DOCKER_USERNAME=passwordnotsafe" > .env
             echo "CONNECTION_STRING=Host=db;Port=5432;Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASS}" >> .env
             echo "OLLAMA_URL=http://ollama:11434" >> .env

@@ -24,13 +24,11 @@ export default function ExpensePage() {
     const [error, setError] = useState<string | null>(null);
     const [editingId, setEditingId] = useState<number | null>(null);
 
-    // --- SMARTA STATE (Behålls för att slippa 0-problemet) ---
     const [description, setDescription] = useState('');
     const [amount, setAmount] = useState('');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [categoryId, setCategoryId] = useState<number>(0);
 
-    // 1. Hämta data
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -50,7 +48,6 @@ export default function ExpensePage() {
         fetchData();
     }, []);
 
-    // 2. Fyll formuläret vid redigering
     const startEditing = (expense: Expense) => {
         setEditingId(expense.id);
         setDescription(expense.description);
@@ -72,14 +69,11 @@ export default function ExpensePage() {
         setCategoryId(0);
     };
 
-    // 3. Spara
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setSubmitting(true);
         setError(null);
-
         const parsedAmount = amount ? parseFloat(amount.replace(',', '.')) : 0;
-
         const payload = {
             description,
             amount: parsedAmount,
@@ -119,32 +113,28 @@ export default function ExpensePage() {
 
     return (
         <div className="view-container">
-            {error && <div className="error-banner" style={{ background: '#d32f2f', color: 'white', padding: '10px', borderRadius: '5px', marginBottom: '20px' }}>{error}</div>}
+            {error && <div style={{ background: '#ef4444', color: 'white', padding: '10px', borderRadius: '6px', marginBottom: '1rem' }}>{error}</div>}
 
-            <section className="form-section card">
-                <h2>{editingId ? 'Redigera utgift' : 'Ny utgift'}</h2>
+            <section className="card" style={{ marginBottom: '2rem' }}>
+                <h2 style={{ marginTop: 0 }}>{editingId ? 'Redigera utgift' : 'Ny utgift'}</h2>
 
-                <form onSubmit={handleSubmit} className="expense-form">
+                <form onSubmit={handleSubmit}>
+                    <div className="expense-form-grid">
 
-                    {/* FLEX CONTAINER: Lägger allt på en rad (som bild 1) */}
-                    <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-
-                        {/* 1. BESKRIVNING (Får ta mest plats: flex: 2) */}
-                        <div style={{ flex: 2, minWidth: '200px' }}>
-                            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Vad?</label>
+                        <div className="form-group">
+                            <label>Vad?</label>
                             <input
                                 type="text"
                                 placeholder="T.ex. Lunch"
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 required
-                                style={{ width: '100%' }} // Fyller sin flex-box
+                                className="form-input"
                             />
                         </div>
 
-                        {/* 2. BELOPP (Smalare: flex: 1) */}
-                        <div style={{ flex: 1, minWidth: '100px' }}>
-                            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Belopp</label>
+                        <div className="form-group">
+                            <label>Belopp</label>
                             <input
                                 type="number"
                                 placeholder="0"
@@ -152,87 +142,80 @@ export default function ExpensePage() {
                                 onChange={(e) => setAmount(e.target.value)}
                                 required
                                 step="0.01"
-                                style={{ width: '100%' }}
+                                className="form-input"
                             />
                         </div>
 
-                        {/* 3. DATUM (Smalare: flex: 1) */}
-                        <div style={{ flex: 1, minWidth: '130px' }}>
-                            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Datum</label>
+                        <div className="form-group">
+                            <label>Datum</label>
                             <input
                                 type="date"
                                 value={date}
                                 onChange={(e) => setDate(e.target.value)}
                                 required
-                                style={{ width: '100%' }}
+                                className="form-input"
                             />
                         </div>
 
-                        {/* 4. KATEGORI (Lite bredare: flex: 1.5) */}
-                        <div style={{ flex: 1.5, minWidth: '180px' }}>
-                            <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>Kategori</label>
+                        <div className="form-group">
+                            <label>Kategori</label>
                             <select
                                 value={categoryId}
                                 onChange={(e) => setCategoryId(Number(e.target.value))}
                                 required
-                                style={{ width: '100%' }}
+                                className="form-input"
                             >
                                 <option value={0}>🤖 Låt AI gissa...</option>
                                 <option disabled>──────────────</option>
-                                {categories.map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
+                                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </select>
                         </div>
 
-                        {/* 5. KNAPPAR (Ingen label, alignas i botten via flex-end) */}
-                        <div style={{ paddingBottom: '2px' }}>
-                            <button type="submit" className="btn-save" disabled={submitting} style={{ height: '42px', whiteSpace: 'nowrap' }}>
-                                {submitting ? '🤖...' : (editingId ? 'Spara' : 'Spara')}
+                        {/* Knappar */}
+                        <div className="form-group" style={{ flexDirection: 'row', gap: '10px' }}>
+                            <button type="submit" className="btn btn-primary" disabled={submitting} style={{ flex: 1 }}>
+                                {submitting ? '...' : (editingId ? 'Spara' : 'Lägg till')}
                             </button>
-
                             {editingId && (
-                                <button type="button" onClick={cancelEditing} style={{ marginLeft: '10px', padding: '10px', height: '42px', cursor: 'pointer' }}>
+                                <button type="button" className="btn" onClick={cancelEditing} style={{ background: '#94a3b8', color: 'white' }}>
                                     X
                                 </button>
                             )}
                         </div>
+
                     </div>
                 </form>
             </section>
 
-            {/* TABELLEN (Oförändrad) */}
-            <section className="list-section card" style={{ marginTop: '20px' }}>
-                <h3>Alla utgifter</h3>
-                <table className="expense-table">
-                    <thead>
-                        <tr>
-                            <th>Datum</th>
-                            <th>Beskrivning</th>
-                            <th>Kategori</th>
-                            <th>Belopp</th>
-                            <th>Val</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {expenses.length === 0 ? (
-                            <tr><td colSpan={5} style={{ textAlign: 'center', padding: '20px' }}>Inga utgifter än.</td></tr>
-                        ) : (
-                            expenses.map(e => (
+            <section className="card">
+                <h3 style={{ marginTop: 0 }}>Alla utgifter</h3>
+                <div className="table-wrapper">
+                    <table className="expense-table">
+                        <thead>
+                            <tr>
+                                <th>Datum</th>
+                                <th>Beskrivning</th>
+                                <th>Kategori</th>
+                                <th>Belopp</th>
+                                <th>Val</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {expenses.map(e => (
                                 <tr key={e.id}>
                                     <td>{new Date(e.date).toLocaleDateString()}</td>
                                     <td>{e.description}</td>
-                                    <td><span className="category-badge">{e.category?.name || 'Övrigt'}</span></td>
+                                    <td><span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '0.85rem' }}>{e.category?.name || 'Övrigt'}</span></td>
                                     <td style={{ fontWeight: 'bold' }}>{e.amount} kr</td>
                                     <td>
-                                        <button onClick={() => startEditing(e)} style={{ marginRight: '5px' }}>✏️</button>
-                                        <button onClick={() => handleDelete(e.id)}>🗑️</button>
+                                        <button className="btn btn-warning" onClick={() => startEditing(e)} style={{ padding: '4px 8px', marginRight: '5px' }}>✏️</button>
+                                        <button className="btn btn-danger" onClick={() => handleDelete(e.id)} style={{ padding: '4px 8px' }}>🗑️</button>
                                     </td>
                                 </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </section>
         </div>
     );

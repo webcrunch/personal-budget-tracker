@@ -3,17 +3,36 @@ services:
     image: passwordnotsafe/budget-api:latest
     networks:
       - traefik-net
+      - app-network
     labels:
       - "traefik.enable=true"
-      # API:et svarar på budgettracker.jarllindquist.com/api
-      - "traefik.http.routers.budget-api.rule=Host(`budgettracker.jarllindquist\
-        .com`) && PathPrefix(`/api`)"
+
+      # 1. Router för vanliga anrop (t.ex. GET, PUT, DELETE)
+      - "traefik.http.routers.budget-api.rule=Host(`budgettracker.jarllindquist.com`) && PathPrefix(`/api`)"
       - "traefik.http.routers.budget-api.entrypoints=websecure"
       - "traefik.http.routers.budget-api.tls.certresolver=myresolver"
       - "traefik.http.routers.budget-api.priority=20"
-      - "traefik.http.services.budget-api.loadbalancer.server.port=8080"
-      # Om ditt API förväntar sig att anropen börjar på /api (t.ex. /api/users), 
-      # så behövs ingen middleware här.
+
+      # 2. Router för enbart POST-anrop (Här sätter vi Rate Limit)
+      # Priority=25 gör att Traefik kollar denna först vid POST-anrop
+      - "traefik.http.routers.budget-api-post.rule=Host(`budgettracker.jarllindquist.com`) && PathPrefix(`/api`) && Method(`POST`)"
+      - "traefik.http.routers.budget-api-post.entrypoints=websecure"
+      - "traefik.http.routers.budget-api-post.tls.certresolver=myresolver"
+      - "traefik.http.routers.budget-api-post.priority=25"
+      - "traefik.http.routers.budget-api-post.middlewares=api-post-limit"
+
+      # Koppla samman båda routrarna till samma interna Traefik-service
+      - "traefik.http.routers.budget-api.service=budget-api-service"
+      - "traefik.http.routers.budget-api-post.service=budget-api-service"
+
+      # 3. Definition av din Rate Limit Middleware
+      # Tillåter i snitt 5 anrop/sekund med tillfälliga spikar (burst) upp till 10 st
+      - "traefik.http.middlewares.api-post-limit.ratelimit.average=5"
+      - "traefik.http.middlewares.api-post-limit.ratelimit.burst=10"
+      - "traefik.http.middlewares.api-post-limit.ratelimit.period=1s"
+
+      # 4. Koppling till API-containerns interna port
+      - "traefik.http.services.budget-api-service.loadbalancer.server.port=8080"
 
   frontend_react:
     image: passwordnotsafe/budget-frontend:latest
@@ -22,10 +41,12 @@ services:
     labels:
       - "traefik.enable=true"
       # UI:t äger hela subdomänen
-      - "traefik.http.routers.budget-ui.rule=Host(`budgettracker.jarllindquist.\
-        com`)"
+      - "traefik.http.routers.budget-ui.rule=Host(`budgettracker.jarllindquist.com`)"
       - "traefik.http.routers.budget-ui.entrypoints=websecure"
       - "traefik.http.routers.budget-ui.tls.certresolver=myresolver"
       - "traefik.http.routers.budget-ui.priority=10"
       - "traefik.http.services.budget-ui.loadbalancer.server.port=80"
-      # Ingen middleware behövs längre eftersom vi inte har någon sub-path!
+
+networks:
+  traefik-net:
+    external: true

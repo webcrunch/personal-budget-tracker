@@ -41,4 +41,4 @@ dist/
 
 # .NET
 bin/
-obj/
+obj/*.lscache

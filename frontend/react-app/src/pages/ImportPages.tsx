@@ -20,13 +20,18 @@ export default function ImportPage() {
         setMessage(null);
 
         try {
-            // Här anropar vi din nya fina utility!
+            // Här anropar vi din utility!
             const result = await api.expenses.importCsv(file);
             setMessage({
                 text: `Succé! ${result.count || 'Dina'} transaktioner har importerats och kategoriserats av AI.`,
                 type: 'success'
             });
             setFile(null);
+
+            // Töm file input-elementet visuellt
+            const fileInput = document.getElementById('csv-upload') as HTMLInputElement;
+            if (fileInput) fileInput.value = '';
+
         } catch (err: any) {
             setMessage({ text: "Import misslyckades: " + err.message, type: 'error' });
         } finally {
@@ -36,20 +41,30 @@ export default function ImportPage() {
 
     return (
         <div className="view-container">
-            <section className="card">
-                <h1>AI-Driven CSV Import</h1>
-                <p>Ladda upp en CSV-fil från din bank. Vår AI kommer automatiskt att försöka gissa kategorier för varje transaktion.</p>
+            <section className="card" style={{ marginBottom: '20px' }}>
+                <h1 style={{ marginTop: 0 }}>AI-Driven CSV Import</h1>
+                <p style={{ color: '#64748b', marginBottom: '2rem' }}>
+                    Ladda upp en CSV-fil från din bank. Vår AI kommer automatiskt att försöka gissa rätt kategori för varje transaktion.
+                </p>
 
-                <div className="import-controls" style={{ marginTop: '20px', padding: '20px', border: '2px dashed #444', borderRadius: '8px', textAlign: 'center' }}>
+                <div className="import-controls" style={{
+                    padding: '2rem',
+                    border: '2px dashed #cbd5e1',
+                    borderRadius: '12px',
+                    textAlign: 'center',
+                    backgroundColor: '#f8fafc',
+                    transition: 'border-color 0.3s'
+                }}>
                     <input
+                        id="csv-upload"
                         type="file"
                         accept=".csv"
                         onChange={handleFileChange}
-                        style={{ marginBottom: '20px' }}
+                        style={{ marginBottom: '20px', maxWidth: '100%' }}
                     />
 
                     {file && (
-                        <div style={{ marginBottom: '20px' }}>
+                        <div style={{ marginBottom: '20px', color: '#0f172a', fontWeight: '500' }}>
                             <strong>Vald fil:</strong> {file.name}
                         </div>
                     )}
@@ -57,10 +72,15 @@ export default function ImportPage() {
                     <button
                         onClick={handleUpload}
                         disabled={!file || uploading}
-                        className="btn-save"
-                        style={{ width: '100%', padding: '12px' }}
+                        className="btn btn-primary"
+                        style={{
+                            width: '100%',
+                            maxWidth: '300px',
+                            padding: '12px',
+                            opacity: (!file || uploading) ? 0.6 : 1
+                        }}
                     >
-                        {uploading ? '🤖 AI analyserar transaktioner... Vänta...' : 'Starta AI-import'}
+                        {uploading ? '🤖 AI analyserar... Vänta...' : 'Starta AI-import'}
                     </button>
                 </div>
 
@@ -68,20 +88,21 @@ export default function ImportPage() {
                     <div style={{
                         marginTop: '20px',
                         padding: '15px',
-                        borderRadius: '5px',
-                        backgroundColor: message.type === 'success' ? '#2e7d32' : '#d32f2f',
-                        color: 'white'
+                        borderRadius: '8px',
+                        backgroundColor: message.type === 'success' ? '#dcfce7' : '#fee2e2',
+                        color: message.type === 'success' ? '#166534' : '#991b1b',
+                        border: `1px solid ${message.type === 'success' ? '#bbf7d0' : '#fecaca'}`
                     }}>
                         {message.text}
                     </div>
                 )}
             </section>
 
-            <section className="card" style={{ marginTop: '20px' }}>
-                <h3>Tips för import</h3>
-                <ul style={{ lineHeight: '1.6' }}>
-                    <li>Se till att din CSV har kolumner för <strong>Beskrivning</strong>, <strong>Belopp</strong> och <strong>Datum</strong>.</li>
-                    <li>AI:n fungerar bäst på svenska och engelska beskrivningar.</li>
+            <section className="card">
+                <h3 style={{ marginTop: 0 }}>Tips för import</h3>
+                <ul style={{ lineHeight: '1.6', color: '#334155', margin: 0, paddingLeft: '20px' }}>
+                    <li style={{ marginBottom: '8px' }}>Se till att din CSV har kolumner för <strong>Beskrivning</strong>, <strong>Belopp</strong> och <strong>Datum</strong>.</li>
+                    <li style={{ marginBottom: '8px' }}>AI:n fungerar bäst på svenska och engelska beskrivningar.</li>
                     <li>Större filer kan ta en stund eftersom AI:n tänker efter för varje rad.</li>
                 </ul>
             </section>

@@ -7,19 +7,51 @@
   --white: #ffffff;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
 body {
   margin: 0;
+  padding: 0;
   font-family: 'Inter', sans-serif;
   background-color: var(--bg-main);
   color: var(--text-main);
+  width: 100%;
+  overflow-x: hidden;
 }
 
+/* 1. LAYOUT & BOXING */
 .dashboard-layout {
   display: flex;
   min-height: 100vh;
+  width: 100%;
+  flex-direction: row;
 }
 
-/* Sidebar */
+.main-content {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  /* Centrerar content-window */
+  background-color: var(--bg-main);
+  padding: 2rem;
+  min-width: 0;
+}
+
+.content-window {
+  width: 100%;
+  max-width: 1200px;
+  /* Den magiska fasta bredden */
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* 2. SIDEBAR (Desktop Standard) */
 .sidebar {
   width: var(--sidebar-width);
   background-color: var(--sidebar-dark);
@@ -27,6 +59,7 @@ body {
   padding: 2rem 0;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
 }
 
 .sidebar-brand {
@@ -48,6 +81,7 @@ body {
   text-decoration: none;
   padding: 1rem 2rem;
   transition: all 0.3s;
+  white-space: nowrap;
 }
 
 .nav-item:hover {
@@ -55,45 +89,81 @@ body {
   color: white;
 }
 
-/* Main Content */
-.main-content {
-  flex: 1;
-  padding: 2rem;
+/* 3. KORT & VYER */
+.view-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  min-width: 0;
 }
 
-.card,
-.view-container {
+.card {
   background: var(--white);
-  padding: 2rem;
+  padding: 1.5rem;
   border-radius: 12px;
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
-/* Form & Tables */
-.expense-form {
-  display: flex;
+/* 4. FORMULÄR GRID */
+.expense-form-grid {
+  display: grid;
   gap: 1rem;
-  flex-wrap: wrap;
-  margin-bottom: 2rem;
+  grid-template-columns: 1fr;
+  width: 100%;
 }
 
-.expense-form input,
-.expense-form select {
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.form-group label {
+  font-weight: bold;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.form-input {
   padding: 0.75rem;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #cbd5e1;
   border-radius: 6px;
+  width: 100%;
+  background-color: #ffffff;
+  color: #334155;
+  font-size: 16px;
+  font-family: inherit;
+}
+
+@media (min-width: 768px) {
+  .expense-form-grid {
+    grid-template-columns: 2fr 1fr 1fr 1.5fr auto;
+    align-items: end;
+  }
+}
+
+/* 5. TABELL & KNAPPAR */
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .expense-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 1rem;
+  min-width: 600px;
 }
 
 .expense-table th {
   text-align: left;
   border-bottom: 2px solid #f1f5f9;
   padding: 1rem;
+  color: #64748b;
 }
 
 .expense-table td {
@@ -101,20 +171,75 @@ body {
   border-bottom: 1px solid #f1f5f9;
 }
 
-button {
-  background: var(--primary);
-  color: white;
-  border: none;
+.btn {
   padding: 0.75rem 1.5rem;
   border-radius: 6px;
   cursor: pointer;
+  border: none;
+  font-weight: 600;
+  white-space: nowrap;
+  font-size: 1rem;
 }
 
-.btn-delete {
+.btn-primary {
+  background: var(--primary);
+  color: white;
+}
+
+.btn-delete,
+.btn-danger {
   background: #ef4444;
-  margin-left: 5px;
+  color: white;
 }
 
-.btn-edit {
+.btn-edit,
+.btn-warning {
   background: #f59e0b;
+  color: white;
+}
+
+/* 6. MOBIL LAYOUT (MEDIA QUERY) - HÄR LIGGER MENY-FIXEN! */
+@media (max-width: 768px) {
+  .dashboard-layout {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    padding: 1rem 0;
+    /* Tar bort sido-padding så scrollen går hela vägen ut till kanten */
+  }
+
+  .sidebar-brand {
+    margin-bottom: 1rem;
+  }
+
+  /* Gör menyn skrollbar i sidled på små skärmar */
+  .sidebar-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+    gap: 0;
+  }
+
+  .nav-item {
+    padding: 0.5rem 1rem;
+  }
+
+  .main-content {
+    padding: 1rem;
+  }
+
+  .content-window {
+    max-width: 100%;
+  }
+
+  .card {
+    padding: 1.25rem;
+  }
+
+  /* Tvinga knapparna i formuläret att bli stora på mobilen */
+  .expense-form-grid .btn {
+    width: 100%;
+  }
 }

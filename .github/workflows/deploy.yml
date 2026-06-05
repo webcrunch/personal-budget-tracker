@@ -28,22 +28,26 @@ jobs:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ env.DOCKER_PASSWORD }}
 
-      # Bygg och pusha API
+      # Bygg och pusha API med cachning
       - name: Build and push API image
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           push: true
+          cache-from: type=registry,ref=passwordnotsafe/budget-api:latest
+          cache-to: type=inline
           tags: |
             passwordnotsafe/budget-api:latest
             passwordnotsafe/budget-api:${{ github.sha }}
 
-      # Bygg och pusha Frontend (Notera build-args för sub-path)
+      # Bygg och pusha Frontend med cachning (Notera build-args för sub-path)
       - name: Build and push Frontend image
         uses: docker/build-push-action@v5
         with:
           context: ./frontend/react-app
           push: true
+          cache-from: type=registry,ref=passwordnotsafe/budget-frontend:latest
+          cache-to: type=inline
           build-args: |
             VITE_API_URL=/api
             VITE_BASE_PATH=/
@@ -99,13 +103,11 @@ jobs:
             cd /home/repos/budget-tracker
 
             # Generera .env fil specifikt för Budget Tracker
-            echo "ASPNETCORE_ENVIRONMENT=Production" >> .env
-            echo "DOCKER_USERNAME=passwordnotsafe" > .env
+            echo "ASPNETCORE_ENVIRONMENT=Production" > .env
+            echo "DOCKER_USERNAME=${DOCKER_USERNAME}" >> .env
             echo "CONNECTION_STRING=Host=db;Port=5432;Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASS}" >> .env
             echo "OLLAMA_URL=http://ollama:11434" >> .env
             echo "OLLAMA_MODEL=llama3.2" >> .env
-
-            # För Postgres-containern
             echo "POSTGRES_DB=${DB_NAME}" >> .env
             echo "POSTGRES_USER=${DB_USER}" >> .env
             echo "POSTGRES_PASSWORD=${DB_PASS}" >> .env

@@ -115,5 +115,5 @@ jobs:
             echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
 
             docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate 
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
             docker image prune -f

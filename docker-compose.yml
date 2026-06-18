@@ -1,3 +1,5 @@
+version: "3.8"
+
 services:
   api:
     build:
@@ -16,6 +18,17 @@ services:
         condition: service_healthy
     networks:
       - app-network
+      - ai-bridge
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   frontend_react:
     build:
@@ -31,6 +44,10 @@ services:
       - api
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
 
   db:
     image: postgres:16
@@ -43,6 +60,11 @@ services:
       - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1.5G
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgresql -d budget_app"]
       interval: 5s
@@ -50,6 +72,10 @@ services:
       retries: 5
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
 
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -67,59 +93,12 @@ services:
     volumes:
       - pgadmin-data:/var/lib/pgadmin
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - app-network
-      - ai-bridge
-    deploy:
-      resources:
-        limits:
-          cpus: "5"
-          memory: 12G
-
-  ollama-init:
-    image: ollama/ollama:latest
-    container_name: ollama-init
-    networks:
-      - app-network
-    depends_on:
-      - ollama
-    volumes:
-      - ollama_data:/root/.ollama
-    environment:
-      - OLLAMA_HOST=ollama:11434
-    entrypoint: /bin/sh
-    command:
-      - "-c"
-      - |
-        echo "Väntar på servern..."
-        until ollama list > /dev/null 2>&1; do sleep 2; done
-
-        echo "Laddar ner Llama 3.2 (för snabbhet)..."
-        ollama pull llama3.2
-
-        echo "Laddar ned Llama 3.1 (för språk)..."
-        ollama pull llama3.1
-
-        #echo "Laddar ner Gemma 4 (för kvalitet)..."
-        #ollama pull gemma4:e4b
-
-        echo "Alla modeller är redo!"
-    restart: "no"
-
 networks:
   app-network:
     driver: bridge
-  traefik-net:
-    external: true
   ai-bridge:
     external: true
 
 volumes:
   db-data:
   pgadmin-data:
-  ollama_data:

@@ -30,7 +30,9 @@ public class AiService
                 model = _modelName,
                 prompt = $"Du är en budget-assistent. Kategorisera utgiften: '{description}'. " +
                          $"Du får ENDAST svara med ett av följande kategorinamn: {categoriesString}. " +
-                         $"Om inget passar exakt, välj det som är närmast eller 'Övrigt'. Svara bara med ordet.",
+                         $"VIKTIGT: Om utgiften verkar vara från en restaurang, café, krog, snabbmat eller Foodora, välj 'Uteätande'. " +
+                         $"Om det är dagligvaror från en livsmedelsbutik (t.ex. ICA, Coop, Willys), välj 'Mat'. " +
+                         $"Om inget passar exakt, välj det som är närmast eller 'Övrigt'. Svara bara med ordet utan punkter.",
                 stream = false
             };
 

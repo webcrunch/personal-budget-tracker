@@ -12,19 +12,17 @@ public class AiService
     {
         _httpClient = httpClient;
 
-        // Vi läser in URL och Modell från miljövariabler/konfiguration
-        // Default-värden om variablerna saknas:
-        var baseUrl = configuration["OLLAMA_URL"] ?? "http://ollama:11434/";
+        // Modellen läser vi fortfarande in här, med llama3.2 som fallback
         _modelName = configuration["OLLAMA_MODEL"] ?? "llama3.2";
 
-        _httpClient.BaseAddress = new Uri(baseUrl);
+        // NOTERA: _httpClient.BaseAddress är nu borttagen härifrån!
+        // Den sätts istället automatiskt centralt via AddHttpClient i Program.cs.
     }
 
     public async Task<string> CategorizeExpenseAsync(string description, List<string> availableCategories)
     {
         try
         {
-            // Slå ihop listan till en sträng för prompten
             string categoriesString = string.Join(", ", availableCategories);
 
             var requestBody = new
@@ -36,13 +34,13 @@ public class AiService
                 stream = false
             };
 
+            // Eftersom BaseAddress är inställd på "http://ollama:11434/" (eller localhost)
+            // kommer detta anrop att skickas till "http://ollama:11434/api/generate"
             var response = await _httpClient.PostAsJsonAsync("api/generate", requestBody);
 
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<OllamaResponse>();
-
-                // Städa svaret (trimma bort whitespaces och eventuella avslutande punkter)
                 var cleanResponse = result?.response?.Trim().TrimEnd('.');
 
                 return string.IsNullOrEmpty(cleanResponse) ? "Övrigt" : cleanResponse;

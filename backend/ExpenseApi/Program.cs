@@ -24,12 +24,21 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Registrera AiService så att Controllern kan använda den
-builder.Services.AddHttpClient<AiService>();
+// --- NYTT: Registrera Health Checks i DI-containern ---
+builder.Services.AddHealthChecks();
+
+// --- ÄNDRAT: Registrera AiService med en specifik Timeout på 3 minuter ---
+builder.Services.AddHttpClient<AiService>(client =>
+{
+    // Hämta URL från miljövariabeln (eller kör fallback till localhost vid lokal dev)
+    var ollamaUrl = builder.Configuration.GetValue<string>("OLLAMA_URL") ?? "http://localhost:11434";
+    client.BaseAddress = new Uri(ollamaUrl);
+
+    // Sätter timeout till 3 minuter så att tunga inferenser på VPS:en inte kastar fel
+    client.Timeout = TimeSpan.FromMinutes(3);
+});
 
 // Hämta anslutningssträngen. 
-// GetValue kollar först efter miljövariabeln CONNECTION_STRING (som vi har i docker-compose.yml), 
-// fallback till GetConnectionString för lokalt bruk.
 var connectionString = builder.Configuration.GetValue<string>("CONNECTION_STRING")
                     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
@@ -74,11 +83,9 @@ using (var scope = app.Services.CreateScope())
         "Livsmedel", "Uteätande", "Systembolaget",
         "Kläder & Skor", "Elektronik", "Nöje", "Husdjur", "Hobby",
         "Hälsa & Apotek", "Träning",
-        "Sparande", "Lån & Räntor", "Övrigt", "Mat" // "Mat" är kvar ifall du har gamla utgifter kopplade till den
+        "Sparande", "Lån & Räntor", "Övrigt", "Mat"
     };
 
-    // Kontrollera varje kategori i listan. Om den INTE finns i databasen, lägg till den!
-    // På detta sätt slipper vi dubbletter och ser till att du får hela listan.
     foreach (var catName in desiredCategories)
     {
         if (!dbContext.Categories.Any(c => c.Name == catName))
@@ -87,7 +94,6 @@ using (var scope = app.Services.CreateScope())
         }
     }
 
-    // Spara alla nyligen tillagda kategorier till databasen
     dbContext.SaveChanges();
 }
 
@@ -98,6 +104,9 @@ app.UseRouting();
 app.UseCors("AllowFrontend");
 
 app.UseAuthorization();
+
+// --- NYTT: Mappa upp healthcheck-endpointen ---
+app.MapHealthChecks("/health");
 
 app.MapControllers();
 

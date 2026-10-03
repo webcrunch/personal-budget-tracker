@@ -85,5 +85,17 @@ export const api = {
      */
     categories: {
         getAll: () => api.request('/categories'),
+    },
+
+    budgets: {
+        getAll: () => api.request('/budgets'),
+        getById: (id: number) => api.request(`/budgets/${id}`),
+        create: (data: any) => api.request('/budgets', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        }),
+        delete: (id: number) => api.request(`/budgets/${id}`, {
+            method: 'DELETE'
+        })
     }
 };

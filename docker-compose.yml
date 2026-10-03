@@ -11,8 +11,11 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
       - CONNECTION_STRING=${CONNECTION_STRING:-Host=db;Port=5432;Database=budget_app;Username=postgresql;Password=jagvillanvändaettbättrelösen}
-      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11435}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
+      - OLLAMA_VISION_MODEL=${OLLAMA_VISION_MODEL:-minicpm-v:latest}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy

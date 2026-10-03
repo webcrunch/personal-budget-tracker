@@ -48,8 +48,6 @@ export const api = {
                 ...data, id, // säkerställ att id alltid finns i body 
                 date: data?.date ? new Date(data.date).toISOString() : null
             };
-            // valfri debug-logg under utveckling: 
-            // // console.debug('PUT payload', payload); 
             return api.request(`/expenses/${id}`, { method: 'PUT', body: JSON.stringify(payload), });
         },
 
@@ -64,6 +62,18 @@ export const api = {
             const formData = new FormData();
             formData.append('file', file);
             return api.request('/expenses/import-csv', {
+                method: 'POST',
+                body: formData,
+            });
+        },
+
+        /**
+         * Ny metod: Analysera kvitto / Kivra-skärmdump med AI
+         */
+        uploadReceipt: (file: File) => {
+            const formData = new FormData();
+            formData.append('file', file);
+            return api.request('/receipts/upload', {
                 method: 'POST',
                 body: formData,
             });

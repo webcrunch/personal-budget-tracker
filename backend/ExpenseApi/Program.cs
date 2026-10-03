@@ -9,7 +9,7 @@ using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using Swashbuckle.AspNetCore.SwaggerUI;
 using System.Text.Json.Serialization;
-using System.Linq; // Viktigt för att kunna använda .Any() och .Count()
+using System.Linq;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,21 +24,21 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// --- NYTT: Registrera Health Checks i DI-containern ---
+// --- Registrera Health Checks i DI-containern ---
 builder.Services.AddHealthChecks();
 
-// --- ÄNDRAT: Registrera AiService med en specifik Timeout på 3 minuter ---
+// --- Registrera AiService med Timeout på 3 minuter ---
 builder.Services.AddHttpClient<AiService>(client =>
 {
-    // Hämta URL från miljövariabeln (eller kör fallback till localhost vid lokal dev)
-    var ollamaUrl = builder.Configuration.GetValue<string>("OLLAMA_URL") ?? "http://localhost:11434";
-    client.BaseAddress = new Uri(ollamaUrl);
+    // Hämta URL från miljövariabeln (med fallback till host.docker.internal:11435)
+    var ollamaUrl = builder.Configuration.GetValue<string>("OLLAMA_URL") ?? "http://host.docker.internal:11435";
+    client.BaseAddress = new Uri(ollamaUrl.TrimEnd('/') + "/");
 
-    // Sätter timeout till 3 minuter så att tunga inferenser på VPS:en inte kastar fel
+    // Sätter timeout till 3 minuter så att tunga inferenser inte kastar fel
     client.Timeout = TimeSpan.FromMinutes(3);
 });
 
-// Hämta anslutningssträngen. 
+// Hämta anslutningssträngen
 var connectionString = builder.Configuration.GetValue<string>("CONNECTION_STRING")
                     ?? builder.Configuration.GetConnectionString("DefaultConnection");
 
@@ -105,8 +105,23 @@ app.UseCors("AllowFrontend");
 
 app.UseAuthorization();
 
-// --- NYTT: Mappa upp healthcheck-endpointen ---
+// --- Healthcheck-endpoint ---
 app.MapHealthChecks("/health");
+
+// --- Kvittoanalys Endpoint ---
+app.MapPost("/api/receipts/upload", async (IFormFile file, AiService aiService) =>
+{
+    if (file == null || file.Length == 0)
+        return Results.BadRequest(new { error = "Ingen fil mottagen." });
+
+    using var stream = file.OpenReadStream();
+    var result = await aiService.AnalyzeReceiptImageAsync(stream);
+
+    if (result == null)
+        return Results.Problem("Kunde inte analysera kvittot från bilden.");
+
+    return Results.Ok(result);
+}).DisableAntiforgery();
 
 app.MapControllers();
 

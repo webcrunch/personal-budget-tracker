@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from 'react';
 import { api } from '../utils/api';
 
 interface Category {
@@ -15,19 +15,38 @@ interface Expense {
     category?: Category;
 }
 
+interface ReceiptLineItem {
+    name: string;
+    price: number;
+    discount: number;
+    finalPrice: number;
+}
+
+interface ParsedReceipt {
+    store: string | null;
+    date: string | null;
+    totalAmount: number;
+    totalDiscount: number;
+    items: ReceiptLineItem[] | null;
+}
+
 export default function ExpensePage() {
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
 
     const [loading, setLoading] = useState<boolean>(true);
     const [submitting, setSubmitting] = useState<boolean>(false);
+    const [analyzingReceipt, setAnalyzingReceipt] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [editingId, setEditingId] = useState<number | null>(null);
 
     const [description, setDescription] = useState('');
     const [amount, setAmount] = useState('');
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [categoryId, setCategoryId] = useState<number>(0);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -48,6 +67,60 @@ export default function ExpensePage() {
         fetchData();
     }, []);
 
+    // Hantera uppladdning och AI-analys av kvitto
+    const handleReceiptUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setAnalyzingReceipt(true);
+        setError(null);
+        setSuccessMessage(null);
+
+        try {
+            const parsed: ParsedReceipt = await api.expenses.uploadReceipt(file);
+
+            // 1. Fyll i beskrivning (butiksnamn)
+            if (parsed.store) {
+                setDescription(parsed.store);
+            }
+
+            // 2. Fyll i belopp
+            if (parsed.totalAmount) {
+                setAmount(parsed.totalAmount.toString());
+            }
+
+            // 3. Fyll i datum om det finns
+            if (parsed.date) {
+                // Säkerställ YYYY-MM-DD
+                const cleanDate = parsed.date.split('T')[0];
+                setDate(cleanDate);
+            }
+
+            // 4. Försök matcha mot en befintlig kategori i listan (t.ex. "Mat" eller "Livsmedel")
+            const storeLower = (parsed.store || '').toLowerCase();
+            const matchedCat = categories.find(c => {
+                const name = c.name.toLowerCase();
+                if (storeLower.includes('ica') || storeLower.includes('coop') || storeLower.includes('willys')) {
+                    return name === 'mat' || name === 'livsmedel';
+                }
+                return false;
+            });
+
+            if (matchedCat) {
+                setCategoryId(matchedCat.id);
+            } else {
+                setCategoryId(0); // Låt backend gissa om ingen matchning hittades direkt
+            }
+
+            setSuccessMessage(`Avläsning klar! Fyllde i ${parsed.store || 'kvittot'} (${parsed.totalAmount} kr).`);
+        } catch (err: any) {
+            setError("Kvittoanalys misslyckades: " + err.message);
+        } finally {
+            setAnalyzingReceipt(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
     const startEditing = (expense: Expense) => {
         setEditingId(expense.id);
         setDescription(expense.description);
@@ -67,6 +140,7 @@ export default function ExpensePage() {
         setAmount('');
         setDate(new Date().toISOString().split('T')[0]);
         setCategoryId(0);
+        setSuccessMessage(null);
     };
 
     const handleSubmit = async (e: FormEvent) => {
@@ -113,10 +187,53 @@ export default function ExpensePage() {
 
     return (
         <div className="view-container">
-            {error && <div style={{ background: '#ef4444', color: 'white', padding: '10px', borderRadius: '6px', marginBottom: '1rem' }}>{error}</div>}
+            {error && (
+                <div style={{ background: '#ef4444', color: 'white', padding: '10px', borderRadius: '6px', marginBottom: '1rem' }}>
+                    {error}
+                </div>
+            )}
+
+            {successMessage && (
+                <div style={{ background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', padding: '10px', borderRadius: '6px', marginBottom: '1rem' }}>
+                    {successMessage}
+                </div>
+            )}
 
             <section className="card" style={{ marginBottom: '2rem' }}>
-                <h2 style={{ marginTop: 0 }}>{editingId ? 'Redigera utgift' : 'Ny utgift'}</h2>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h2 style={{ margin: 0 }}>{editingId ? 'Redigera utgift' : 'Ny utgift'}</h2>
+
+                    {/* Snabbknapp för kvitto/skärmdump */}
+                    {!editingId && (
+                        <div>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                onChange={handleReceiptUpload}
+                                disabled={analyzingReceipt}
+                            />
+                            <button
+                                type="button"
+                                className="btn"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={analyzingReceipt}
+                                style={{
+                                    backgroundColor: '#0284c7',
+                                    color: 'white',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '8px 14px',
+                                    cursor: analyzingReceipt ? 'not-allowed' : 'pointer'
+                                }}
+                            >
+                                {analyzingReceipt ? '⏳ Läser av kvitto...' : '📸 Läs av Kivra-kvitto'}
+                            </button>
+                        </div>
+                    )}
+                </div>
 
                 <form onSubmit={handleSubmit}>
                     <div className="expense-form-grid">
@@ -125,7 +242,7 @@ export default function ExpensePage() {
                             <label>Vad?</label>
                             <input
                                 type="text"
-                                placeholder="T.ex. Lunch"
+                                placeholder="T.ex. ICA Kvantum"
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 required
@@ -173,7 +290,7 @@ export default function ExpensePage() {
 
                         {/* Knappar */}
                         <div className="form-group" style={{ flexDirection: 'row', gap: '10px' }}>
-                            <button type="submit" className="btn btn-primary" disabled={submitting} style={{ flex: 1 }}>
+                            <button type="submit" className="btn btn-primary" disabled={submitting || analyzingReceipt} style={{ flex: 1 }}>
                                 {submitting ? '...' : (editingId ? 'Spara' : 'Lägg till')}
                             </button>
                             {editingId && (

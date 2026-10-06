@@ -6,6 +6,7 @@ using ExpenseApi.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.Tasks;
 using System;
+using Microsoft.AspNetCore.Http;
 
 namespace ExpenseApi.Controllers;
 
@@ -21,38 +22,26 @@ public class ExpensesController : ControllerBase
         _context = context;
         _aiService = aiService;
 
-        // SEEDER: Körs bara om databasen är helt tom på kategorier
         if (!_context.Categories.Any())
         {
             _context.Categories.AddRange(
-                // 🏠 Boende & Fasta kostnader
                 new Category { Name = "Boende" },
                 new Category { Name = "El & Värme" },
                 new Category { Name = "Försäkringar" },
-                new Category { Name = "Abonnemang" }, // Netflix, Spotify m.m.
-
-                // 🚗 Transport
-                new Category { Name = "Transport" }, // Generell (busskort etc)
+                new Category { Name = "Abonnemang" },
+                new Category { Name = "Transport" },
                 new Category { Name = "Drivmedel" },
                 new Category { Name = "Bilunderhåll" },
-
-                // 🥦 Mat & Dryck
                 new Category { Name = "Livsmedel" },
                 new Category { Name = "Uteätande" },
                 new Category { Name = "Systembolaget" },
-
-                // 🛍️ Shopping & Nöje
                 new Category { Name = "Kläder & Skor" },
                 new Category { Name = "Elektronik" },
                 new Category { Name = "Nöje" },
-                new Category { Name = "Husdjur" }, // Viktig för kattmaten! 🐱
+                new Category { Name = "Husdjur" },
                 new Category { Name = "Hobby" },
-
-                // 💊 Hälsa
                 new Category { Name = "Hälsa & Apotek" },
                 new Category { Name = "Träning" },
-
-                // 💰 Övrigt
                 new Category { Name = "Sparande" },
                 new Category { Name = "Lån & Räntor" },
                 new Category { Name = "Övrigt" }
@@ -61,19 +50,24 @@ public class ExpensesController : ControllerBase
         }
     }
 
-    [HttpGet] // Tog bort "/api/expenses" här eftersom [Route] högst upp redan sköter det
+    [HttpGet]
     public async Task<ActionResult<IEnumerable<Expense>>> GetExpenses()
     {
         return await _context.Expenses
             .Include(e => e.Category)
-            .OrderByDescending(e => e.Date) // Sortera så nyaste kommer först
+            .Include(e => e.Items) // <-- Inkludera kvittoraderna
+            .OrderByDescending(e => e.Date)
             .ToListAsync();
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<Expense>> GetExpense(int id)
     {
-        var expense = await _context.Expenses.Include(e => e.Category).FirstOrDefaultAsync(e => e.Id == id);
+        var expense = await _context.Expenses
+            .Include(e => e.Category)
+            .Include(e => e.Items) // <-- Inkludera kvittoraderna
+            .FirstOrDefaultAsync(e => e.Id == id);
+
         if (expense == null) return NotFound();
         return expense;
     }
@@ -81,7 +75,10 @@ public class ExpensesController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteExpense(int id)
     {
-        var expense = await _context.Expenses.FindAsync(id);
+        var expense = await _context.Expenses
+            .Include(e => e.Items) // Säkerställer att relaterade rader raderas
+            .FirstOrDefaultAsync(e => e.Id == id);
+
         if (expense == null)
         {
             return NotFound();
@@ -95,11 +92,10 @@ public class ExpensesController : ControllerBase
         }
         catch (DbUpdateException)
         {
-            // Logga eller hantera beroenden/constraint‑fel om det behövs
             return StatusCode(StatusCodes.Status500InternalServerError, "Kunde inte ta bort utgiften.");
         }
 
-        return NoContent(); // 204 enligt REST‑konvention
+        return NoContent();
     }
 
     [HttpPut("{id}")]
@@ -115,14 +111,15 @@ public class ExpensesController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        // 1. Kontrollera att posten finns i databasen
-        var existing = await _context.Expenses.FindAsync(id);
+        var existing = await _context.Expenses
+            .Include(e => e.Items)
+            .FirstOrDefaultAsync(e => e.Id == id);
+
         if (existing == null)
         {
             return NotFound();
         }
 
-        // 2. AI-LOGIK FÖR PUT: Om CategoryId är 0, låt AI:n gissa igen
         if (expense.CategoryId == 0)
         {
             var categoryNames = await _context.Categories.Select(c => c.Name).ToListAsync();
@@ -138,19 +135,33 @@ public class ExpensesController : ControllerBase
             }
         }
 
-        // 3. SÄKERHETSKONTROLL: Kontrollera att CategoryId faktiskt existerar i DB
-        // Detta förhindrar "violates foreign key constraint"-felet
         var categoryExists = await _context.Categories.AnyAsync(c => c.Id == expense.CategoryId);
         if (!categoryExists)
         {
             return BadRequest($"Kategori med ID {expense.CategoryId} finns inte.");
         }
 
-        // 4. Uppdatera fälten
+        // Uppdatera grundfälten
         existing.Amount = expense.Amount;
         existing.Description = expense.Description;
         existing.Date = expense.Date;
         existing.CategoryId = expense.CategoryId;
+
+        // Uppdatera items om nya skickades med
+        if (expense.Items != null && expense.Items.Any())
+        {
+            _context.ExpenseItems.RemoveRange(existing.Items);
+            foreach (var item in expense.Items)
+            {
+                existing.Items.Add(new ExpenseItem
+                {
+                    Name = item.Name,
+                    Price = item.Price,
+                    Discount = item.Discount,
+                    FinalPrice = item.FinalPrice
+                });
+            }
+        }
 
         try
         {
@@ -166,36 +177,26 @@ public class ExpensesController : ControllerBase
         return NoContent();
     }
 
-
-
     [HttpPost]
     public async Task<ActionResult<Expense>> PostExpense(Expense expense)
     {
-        // 1. Om CategoryId saknas (0) ELLER om användaren valde "Låt AI gissa" (som skickar 0), kör AI-logik
         if (expense.CategoryId == 0)
         {
-            // A. Hämta alla dina kategorier (inklusive Husdjur, Abonnemang etc)
             var categoryNames = await _context.Categories
-                                              .Select(c => c.Name)
-                                              .ToListAsync();
+                                             .Select(c => c.Name)
+                                             .ToListAsync();
 
-            // B. Skicka beskrivningen OCH listan till AI:n
-            // HÄR VAR FELET: ändrade 'expenseDto.Description' till 'expense.Description'
             var aiCategoryName = await _aiService.CategorizeExpenseAsync(expense.Description, categoryNames);
 
-            // C. Hitta matchande kategori i databasen
             var category = await _context.Categories
                                          .FirstOrDefaultAsync(c => c.Name == aiCategoryName);
 
-            // D. Fallback om AI gissade på något som inte finns (säkerhetsåtgärd)
             if (category == null)
             {
                 category = await _context.Categories.FirstOrDefaultAsync(c => c.Name == "Övrigt");
 
-                // Super-fallback om inte ens "Övrigt" finns (för att undvika krasch)
                 if (category == null)
                 {
-                    // Skapa en temporär kategori om allt annat fallerar
                     var tempCat = new Category { Name = "Okänd" };
                     _context.Categories.Add(tempCat);
                     await _context.SaveChangesAsync();
@@ -206,14 +207,14 @@ public class ExpensesController : ControllerBase
             expense.CategoryId = category.Id;
         }
 
-        // 2. Spara utgiften
+        // Sparar utgiften och dess Items (EF Core sköter ExpenseId på alla rader automatiskt)
         _context.Expenses.Add(expense);
         await _context.SaveChangesAsync();
 
-        // 3. Ladda kategoriobjektet så att frontenden kan visa namnet direkt
+        // Ladda relationerna så svaret innehåller både kategori och rader
         await _context.Entry(expense).Reference(e => e.Category).LoadAsync();
+        await _context.Entry(expense).Collection(e => e.Items).LoadAsync();
 
         return CreatedAtAction(nameof(GetExpense), new { id = expense.Id }, expense);
     }
-
 }

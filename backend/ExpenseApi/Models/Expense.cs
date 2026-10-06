@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema; // För [ForeignKey]
 
@@ -16,16 +17,17 @@ namespace ExpenseApi.Models
         public decimal Amount { get; set; }
 
         [Required]
-        // public DateTime Date { get; set; }
-        public DateTimeOffset Date { get; set; } // ändrat
+        public DateTimeOffset Date { get; set; }
 
         // Foreign Key för Category
         [Required]
         public int CategoryId { get; set; }
 
         // Navigationsegenskap till Category-modellen
-        // Detta låter dig ladda det relaterade Category-objektet när du hämtar en Expense
         [ForeignKey("CategoryId")]
-        public virtual Category? Category { get; set; } // Använd virtual för lazy loading (om aktiverat)
+        public virtual Category? Category { get; set; }
+
+        // Navigationsegenskap till de enskilda kvittoraderna
+        public virtual ICollection<ExpenseItem> Items { get; set; } = new List<ExpenseItem>();
     }
 }

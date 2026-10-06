@@ -7,20 +7,9 @@
   --white: #ffffff;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-html,
 body {
-  margin: 0;
-  padding: 0;
-  font-family: 'Inter', sans-serif;
   background-color: var(--bg-main);
   color: var(--text-main);
-  width: 100%;
   overflow-x: hidden;
 }
 
@@ -36,7 +25,6 @@ body {
   flex: 1;
   display: flex;
   justify-content: center;
-  /* Centrerar content-window */
   background-color: var(--bg-main);
   padding: 2rem;
   min-width: 0;
@@ -45,13 +33,12 @@ body {
 .content-window {
   width: 100%;
   max-width: 1200px;
-  /* Den magiska fasta bredden */
   display: flex;
   flex-direction: column;
   gap: 2rem;
 }
 
-/* 2. SIDEBAR (Desktop Standard) */
+/* 2. SIDEBAR */
 .sidebar {
   width: var(--sidebar-width);
   background-color: var(--sidebar-dark);
@@ -80,7 +67,7 @@ body {
   color: #94a3b8;
   text-decoration: none;
   padding: 1rem 2rem;
-  transition: all 0.3s;
+  transition: all 0.2s ease-in-out;
   white-space: nowrap;
 }
 
@@ -102,7 +89,7 @@ body {
   background: var(--white);
   padding: 1.5rem;
   border-radius: 12px;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
   width: 100%;
   min-width: 0;
   overflow: hidden;
@@ -123,7 +110,7 @@ body {
 }
 
 .form-group label {
-  font-weight: bold;
+  font-weight: 600;
   font-size: 0.85rem;
   color: #64748b;
 }
@@ -135,8 +122,14 @@ body {
   width: 100%;
   background-color: #ffffff;
   color: #334155;
-  font-size: 16px;
+  font-size: 1rem;
   font-family: inherit;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
 @media (min-width: 768px) {
@@ -156,29 +149,36 @@ body {
 .expense-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 600px;
 }
 
 .expense-table th {
   text-align: left;
   border-bottom: 2px solid #f1f5f9;
-  padding: 1rem;
+  padding: 0.85rem 1rem;
   color: #64748b;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .expense-table td {
-  padding: 1rem;
+  padding: 0.85rem 1rem;
   border-bottom: 1px solid #f1f5f9;
 }
 
 .btn {
-  padding: 0.75rem 1.5rem;
+  padding: 0.65rem 1.25rem;
   border-radius: 6px;
   cursor: pointer;
   border: none;
   font-weight: 600;
   white-space: nowrap;
-  font-size: 1rem;
+  font-size: 0.95rem;
+  transition: opacity 0.15s ease;
+}
+
+.btn:hover {
+  opacity: 0.9;
 }
 
 .btn-primary {
@@ -198,7 +198,70 @@ body {
   color: white;
 }
 
-/* 6. MOBIL LAYOUT (MEDIA QUERY) - HÄR LIGGER MENY-FIXEN! */
+/* 6. KVITTOARTIKLAR & MOBILKORT */
+.expense-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.expense-mobile-card {
+  display: none;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.expense-mobile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.expense-mobile-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.receipt-drawer {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-top: 10px;
+}
+
+.receipt-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  font-size: 0.85rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.receipt-item-row:last-child {
+  border-bottom: none;
+}
+
+.receipt-discount-tag {
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+}
+
+/* 7. MOBIL LAYOUT (MEDIA QUERY) */
 @media (max-width: 768px) {
   .dashboard-layout {
     flex-direction: column;
@@ -207,14 +270,12 @@ body {
   .sidebar {
     width: 100%;
     padding: 1rem 0;
-    /* Tar bort sido-padding så scrollen går hela vägen ut till kanten */
   }
 
   .sidebar-brand {
     margin-bottom: 1rem;
   }
 
-  /* Gör menyn skrollbar i sidled på små skärmar */
   .sidebar-nav {
     flex-direction: row;
     overflow-x: auto;
@@ -238,8 +299,16 @@ body {
     padding: 1.25rem;
   }
 
-  /* Tvinga knapparna i formuläret att bli stora på mobilen */
   .expense-form-grid .btn {
     width: 100%;
+  }
+
+  /* Växla från tabell till mobilkort */
+  .expense-table-desktop {
+    display: none;
+  }
+
+  .expense-mobile-card {
+    display: block;
   }
 }

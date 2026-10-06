@@ -112,7 +112,7 @@ const ExpensePage: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+ const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!description || !amount) return;
 
@@ -136,8 +136,15 @@ const ExpensePage: React.FC = () => {
       setPreviewUrl(null);
 
       loadData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Kunde inte spara utgift:', err);
+      // Fångar upp dubblettvarningen från backend (409 Conflict)
+      const errorMsg = err.response?.data?.message || err.message || '';
+      if (errorMsg.includes('finns redan registrerad')) {
+        alert(errorMsg);
+      } else {
+        alert('Kunde inte spara utgiften: ' + (errorMsg || 'Okänt fel'));
+      }
     }
   };
 

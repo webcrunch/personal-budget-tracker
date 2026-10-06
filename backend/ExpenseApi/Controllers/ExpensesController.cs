@@ -7,7 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using System.Threading.Tasks;
 using System;
 using Microsoft.AspNetCore.Http;
-
+using System.Globalization;
+using System.Text;
 namespace ExpenseApi.Controllers;
 
 [Route("api/[controller]")]
@@ -177,46 +178,73 @@ public class ExpensesController : ControllerBase
         return NoContent();
     }
 
-    [HttpPost]
-    public async Task<ActionResult<Expense>> PostExpense(Expense expense)
+   [HttpPost]
+public async Task<ActionResult<Expense>> PostExpense(Expense expense)
+{
+    // 1. Dubblettkontroll för manuell inmatning / kvitton
+    var targetDate = DateTime.SpecifyKind(expense.Date.Date, DateTimeKind.Utc);
+    var minDate = targetDate.AddDays(-1);
+    var maxDate = targetDate.AddDays(1);
+
+    var existingDuplicate = await _context.Expenses
+        .Where(e => e.Date >= minDate && e.Date <= maxDate && e.Amount == expense.Amount)
+        .FirstOrDefaultAsync(e => 
+            e.Description.ToLower().Trim() == expense.Description.ToLower().Trim() ||
+            e.Description.ToLower().Contains(expense.Description.ToLower().Trim()) ||
+            expense.Description.ToLower().Contains(e.Description.ToLower().Trim()));
+
+    if (existingDuplicate != null)
     {
-        if (expense.CategoryId == 0)
+        return Conflict(new 
+        { 
+            message = $"En utgift med beloppet {expense.Amount:0.00} kr och snarlik beskrivning ('{existingDuplicate.Description}') finns redan registrerad den {existingDuplicate.Date:yyyy-MM-dd}." 
+        });
+    }
+
+    // 2. AI-kategorisering om kategori inte valts (CategoryId == 0)
+    if (expense.CategoryId == 0)
+    {
+        var categoryNames = await _context.Categories
+                                         .Select(c => c.Name)
+                                         .ToListAsync();
+
+        var promptDescription = expense.Description;
+        if (expense.Items != null && expense.Items.Any())
         {
-            var categoryNames = await _context.Categories
-                                             .Select(c => c.Name)
-                                             .ToListAsync();
-
-            var aiCategoryName = await _aiService.CategorizeExpenseAsync(expense.Description, categoryNames);
-
-            var category = await _context.Categories
-                                         .FirstOrDefaultAsync(c => c.Name == aiCategoryName);
-
-            if (category == null)
-            {
-                category = await _context.Categories.FirstOrDefaultAsync(c => c.Name == "Övrigt");
-
-                if (category == null)
-                {
-                    var tempCat = new Category { Name = "Okänd" };
-                    _context.Categories.Add(tempCat);
-                    await _context.SaveChangesAsync();
-                    category = tempCat;
-                }
-            }
-
-            expense.CategoryId = category.Id;
+            var itemNames = string.Join(", ", expense.Items.Select(i => i.Name));
+            promptDescription = $"{expense.Description} (Varor på kvittot: {itemNames})";
         }
 
-        // Sparar utgiften och dess Items (EF Core sköter ExpenseId på alla rader automatiskt)
-        _context.Expenses.Add(expense);
-        await _context.SaveChangesAsync();
+        var aiCategoryName = await _aiService.CategorizeExpenseAsync(promptDescription, categoryNames);
 
-        // Ladda relationerna så svaret innehåller både kategori och rader
-        await _context.Entry(expense).Reference(e => e.Category).LoadAsync();
-        await _context.Entry(expense).Collection(e => e.Items).LoadAsync();
+        var category = await _context.Categories
+                                     .FirstOrDefaultAsync(c => c.Name == aiCategoryName)
+                       ?? await _context.Categories.FirstOrDefaultAsync(c => c.Name == "Livsmedel")
+                       ?? await _context.Categories.FirstOrDefaultAsync(c => c.Name == "Mat")
+                       ?? await _context.Categories.FirstOrDefaultAsync(c => c.Name == "Övrigt");
 
-        return CreatedAtAction(nameof(GetExpense), new { id = expense.Id }, expense);
+        if (category == null)
+        {
+            var tempCat = new Category { Name = "Okänd" };
+            _context.Categories.Add(tempCat);
+            await _context.SaveChangesAsync();
+            category = tempCat;
+        }
+
+        expense.CategoryId = category.Id;
     }
+
+    // Se till att datumet är korrekt UTC för PostgreSQL
+    expense.Date = DateTime.SpecifyKind(expense.Date, DateTimeKind.Utc);
+
+    _context.Expenses.Add(expense);
+    await _context.SaveChangesAsync();
+
+    await _context.Entry(expense).Reference(e => e.Category).LoadAsync();
+    await _context.Entry(expense).Collection(e => e.Items).LoadAsync();
+
+    return CreatedAtAction(nameof(GetExpense), new { id = expense.Id }, expense);
+}
 
     [HttpPost("import-csv")]
 public async Task<ActionResult<object>> ImportCsv(IFormFile file)

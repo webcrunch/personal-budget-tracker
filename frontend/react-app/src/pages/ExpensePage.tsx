@@ -24,7 +24,7 @@ interface Expense {
   items?: ExpenseItem[];
 }
 
-export const ExpensePage: React.FC = () => {
+const ExpensePage: React.FC = () => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   
@@ -46,12 +46,12 @@ export const ExpensePage: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const [expRes, catRes] = await Promise.all([
-        api.get<Expense[]>('/expenses'),
-        api.get<Category[]>('/categories')
+      const [expData, catData] = await Promise.all([
+        api.expenses.getAll(),
+        api.categories.getAll()
       ]);
-      setExpenses(expRes.data);
-      setCategories(catRes.data);
+      setExpenses(expData || []);
+      setCategories(catData || []);
     } catch (err) {
       console.error('Kunde inte läsa in data:', err);
     }
@@ -64,20 +64,14 @@ export const ExpensePage: React.FC = () => {
     setPreviewUrl(URL.createObjectURL(file));
     setIsScanning(true);
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
-      const res = await api.post('/expenses/upload-receipt', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      const parsed = await api.expenses.uploadReceipt(file);
 
-      const parsed = res.data;
       if (parsed) {
-        // 1. Tvätta bort ev. kvarvarande markdown/asterisker
+        // 1. Tvätta bort ev. stjärnor eller specialtecken
         let cleanedStore = (parsed.store || '').replace(/[*_#~]/g, '').trim();
 
-        // Fånga upp vanliga varianter/OCR-fel för Malmborgs
+        // Rätta vanliga felstavningar för Malmborgs
         if (/malmbo[r]?g[r]?s/i.test(cleanedStore) || /erikslust/i.test(cleanedStore)) {
           cleanedStore = 'ICA Malmborgs Erikslust';
         }
@@ -92,7 +86,7 @@ export const ExpensePage: React.FC = () => {
           setReceiptItems([]);
         }
 
-        // 2. Bred matchning för matbutiker
+        // 2. Matcha matkategorier
         const storeLower = cleanedStore.toLowerCase();
         const groceryKeywords = [
           'ica', 'maxi', 'kvantum', 'malmborg', 'malmbogrs',
@@ -100,7 +94,6 @@ export const ExpensePage: React.FC = () => {
         ];
         const isGrocery = groceryKeywords.some(k => storeLower.includes(k));
 
-        // 3. Matcha både 'mat' och 'livsmedel'
         const matched = categories.find(c => {
           const catName = c.name.toLowerCase();
           if (isGrocery) {
@@ -132,7 +125,7 @@ export const ExpensePage: React.FC = () => {
         items: receiptItems.length > 0 ? receiptItems : undefined
       };
 
-      await api.post('/expenses', newExpense);
+      await api.expenses.create(newExpense);
       
       // Återställ formulär
       setDescription('');
@@ -151,7 +144,7 @@ export const ExpensePage: React.FC = () => {
   const handleDelete = async (id: number) => {
     if (!window.confirm('Är du säker på att du vill ta bort denna utgift?')) return;
     try {
-      await api.delete(`/expenses/${id}`);
+      await api.expenses.delete(id);
       loadData();
     } catch (err) {
       console.error('Kunde inte ta bort:', err);
@@ -402,3 +395,5 @@ export const ExpensePage: React.FC = () => {
     </div>
   );
 };
+
+export default ExpensePage;

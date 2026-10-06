@@ -186,12 +186,19 @@ public class ExpensesController : ControllerBase
         var minDate = expense.Date.AddDays(-1);
         var maxDate = expense.Date.AddDays(1);
 
+        var descWords = expense.Description
+            .ToLower()
+            .Split(new[] { ' ', '-', ',', '.', '*' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length > 3)
+            .ToList();
+
         var existingDuplicate = await _context.Expenses
             .Where(e => e.Date >= minDate && e.Date <= maxDate && e.Amount == expense.Amount)
             .FirstOrDefaultAsync(e => 
                 e.Description.ToLower().Trim() == expense.Description.ToLower().Trim() ||
                 e.Description.ToLower().Contains(expense.Description.ToLower().Trim()) ||
-                expense.Description.ToLower().Contains(e.Description.ToLower().Trim()));
+                expense.Description.ToLower().Contains(e.Description.ToLower().Trim()) ||
+                descWords.Any(w => e.Description.ToLower().Contains(w)));
 
         if (existingDuplicate != null)
         {
@@ -324,19 +331,25 @@ public class ExpensesController : ControllerBase
         // 3. Filtrera bort dubbletter mot befintlig data och mot CSV-filen internt
         foreach (var row in parsedRows)
         {
+            var rowWords = row.Description
+                .ToLower()
+                .Split(new[] { ' ', '-', ',', '.', '*' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(w => w.Length > 3)
+                .ToList();
+
             bool existsInDb = existingExpenses.Any(e => 
                 e.Date.Date == row.Date.Date && 
                 e.Amount == row.Amount &&
                 (
                     e.Description.Equals(row.Description, StringComparison.OrdinalIgnoreCase) ||
                     e.Description.ToLower().Contains(row.Description.ToLower()) ||
-                    row.Description.ToLower().Contains(e.Description.ToLower())
+                    row.Description.ToLower().Contains(e.Description.ToLower()) ||
+                    rowWords.Any(w => e.Description.ToLower().Contains(w))
                 ));
 
             bool existsInBatch = newExpenses.Any(e => 
                 e.Date.Date == row.Date.Date && 
-                e.Amount == row.Amount && 
-                e.Description.Equals(row.Description, StringComparison.OrdinalIgnoreCase));
+                e.Amount == row.Amount);
 
             if (existsInDb || existsInBatch)
             {

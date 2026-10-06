@@ -22,7 +22,7 @@ export default function BudgetCreate() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const response = await fetch(`${API_BASE_URL}/Budget`, {
+        const response = await fetch(`${API_BASE_URL}/Budgets`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

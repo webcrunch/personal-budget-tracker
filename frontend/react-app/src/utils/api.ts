@@ -12,7 +12,7 @@ export const api = {
         const response = await fetch(url, {
             ...options,
             headers: {
-                // Vi skickar endast JSON-header om vi inte skickar FormData (vid filuppladdning)
+                // Skickar endast JSON-header om vi inte skickar FormData (vid filuppladdning)
                 ...(options?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
                 ...options?.headers,
             },
@@ -23,7 +23,7 @@ export const api = {
             throw new Error(`API Fel (${response.status}): ${errorText || response.statusText}`);
         }
 
-        // 204 No Content returneras vid lyckad DELETE
+        // 204 No Content returneras vid lyckad DELETE eller PUT
         if (response.status === 204) return null;
 
         return response.json();
@@ -31,7 +31,6 @@ export const api = {
 
     /**
      * Utgifter (Expenses)
-     * Notera plural 'expenses' för att matcha .NET-standard
      */
     expenses: {
         getAll: () => api.request('/expenses'),
@@ -45,19 +44,20 @@ export const api = {
 
         update: (id: number, data: any) => {
             const payload = {
-                ...data, id, // säkerställ att id alltid finns i body 
+                ...data, 
+                id,
                 date: data?.date ? new Date(data.date).toISOString() : null
             };
-            return api.request(`/expenses/${id}`, { method: 'PUT', body: JSON.stringify(payload), });
+            return api.request(`/expenses/${id}`, { 
+                method: 'PUT', 
+                body: JSON.stringify(payload) 
+            });
         },
 
         delete: (id: number) => api.request(`/expenses/${id}`, {
             method: 'DELETE',
         }),
 
-        /**
-         * Förberedd funktion för din CSV-import
-         */
         importCsv: (file: File) => {
             const formData = new FormData();
             formData.append('file', file);
@@ -67,9 +67,6 @@ export const api = {
             });
         },
 
-        /**
-         * Ny metod: Analysera kvitto / Kivra-skärmdump med AI
-         */
         uploadReceipt: (file: File) => {
             const formData = new FormData();
             formData.append('file', file);
@@ -87,13 +84,32 @@ export const api = {
         getAll: () => api.request('/categories'),
     },
 
+    /**
+     * Budgetar
+     */
     budgets: {
         getAll: () => api.request('/budgets'),
+
         getById: (id: number) => api.request(`/budgets/${id}`),
+
         create: (data: any) => api.request('/budgets', {
             method: 'POST',
             body: JSON.stringify(data)
         }),
+
+        update: (id: number, data: any) => {
+            const payload = {
+                ...data,
+                id,
+                startDate: data?.startDate ? new Date(data.startDate).toISOString() : null,
+                endDate: data?.endDate ? new Date(data.endDate).toISOString() : null
+            };
+            return api.request(`/budgets/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+        },
+
         delete: (id: number) => api.request(`/budgets/${id}`, {
             method: 'DELETE'
         })

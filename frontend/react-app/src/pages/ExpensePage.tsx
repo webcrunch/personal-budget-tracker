@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from 'react';
-import { api } from './utils/api';
-
+import { api } from '../utils/api';
 interface Category {
     id: number;
     name: string;

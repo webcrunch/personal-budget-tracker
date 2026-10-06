@@ -217,4 +217,153 @@ public class ExpensesController : ControllerBase
 
         return CreatedAtAction(nameof(GetExpense), new { id = expense.Id }, expense);
     }
+
+    [HttpPost("import-csv")]
+public async Task<ActionResult<object>> ImportCsv(IFormFile file)
+{
+    if (file == null || file.Length == 0)
+    {
+        return BadRequest(new { message = "Ingen fil skickades med." });
+    }
+
+    // 1. Parsa CSV till en preliminär lista
+    var parsedRows = new List<(DateTime Date, string Description, decimal Amount)>();
+
+    using (var reader = new StreamReader(file.OpenReadStream(), Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
+    {
+        string? headerLine = await reader.ReadLineAsync();
+        if (string.IsNullOrWhiteSpace(headerLine))
+            return BadRequest(new { message = "CSV-filen är tom." });
+
+        char separator = headerLine.Contains(';') ? ';' : ',';
+        var headers = headerLine.Split(separator).Select(h => h.Trim().Trim('"').ToLower()).ToList();
+
+        int dateIdx = headers.FindIndex(h => h.Contains("datum") || h.Contains("date") || h.Contains("bokföringsdag"));
+        int descIdx = headers.FindIndex(h => h.Contains("beskrivning") || h.Contains("rubrik") || h.Contains("text") || h.Contains("mottagare"));
+        int amountIdx = headers.FindIndex(h => h.Contains("belopp") || h.Contains("summa") || h.Contains("amount"));
+
+        if (dateIdx == -1 || descIdx == -1 || amountIdx == -1)
+            return BadRequest(new { message = "Kunde inte hitta kolumner för Datum, Beskrivning och Belopp." });
+
+        string? line;
+        while ((line = await reader.ReadLineAsync()) != null)
+        {
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            var cols = line.Split(separator).Select(c => c.Trim().Trim('"')).ToArray();
+            if (cols.Length <= Math.Max(dateIdx, Math.Max(descIdx, amountIdx))) continue;
+
+            string rawDate = cols[dateIdx];
+            string rawDesc = cols[descIdx];
+            string rawAmount = cols[amountIdx].Replace(" ", "").Replace("kr", "").Replace(',', '.');
+
+            if (!DateTime.TryParse(rawDate, out DateTime dt) ||
+                !decimal.TryParse(rawAmount, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal amt))
+            {
+                continue;
+            }
+
+            parsedRows.Add((DateTime.SpecifyKind(dt.Date, DateTimeKind.Utc), rawDesc, Math.Abs(amt)));
+        }
+    }
+
+    if (!parsedRows.Any())
+    {
+        return BadRequest(new { message = "Inga giltiga transaktioner hittades." });
+    }
+
+    // 2. Hämta befintliga utgifter i databasen för tidsperioden
+    var minDate = parsedRows.Min(r => r.Date).AddDays(-1);
+    var maxDate = parsedRows.Max(r => r.Date).AddDays(1);
+
+    var existingExpenses = await _context.Expenses
+        .Where(e => e.Date >= minDate && e.Date <= maxDate)
+        .ToListAsync();
+
+    var categories = await _context.Categories.ToListAsync();
+    var categoryNames = categories.Select(c => c.Name).ToList();
+    var defaultCategory = categories.FirstOrDefault(c => c.Name.Equals("Övrigt", StringComparison.OrdinalIgnoreCase)) ?? categories.First();
+    var foodCategory = categories.FirstOrDefault(c => c.Name.Equals("Livsmedel", StringComparison.OrdinalIgnoreCase) || c.Name.Equals("Mat", StringComparison.OrdinalIgnoreCase));
+
+    var newExpenses = new List<Expense>();
+    int duplicatesSkipped = 0;
+
+    // 3. Filtrera bort dubbletter mot befintlig data och mot CSV-filen internt
+    foreach (var row in parsedRows)
+    {
+        // Kontrollera om transaktionen redan finns i databasen
+        bool existsInDb = existingExpenses.Any(e => 
+            e.Date.Date == row.Date.Date && 
+            e.Amount == row.Amount &&
+            (
+                e.Description.Equals(row.Description, StringComparison.OrdinalIgnoreCase) ||
+                e.Description.ToLower().Contains(row.Description.ToLower()) ||
+                row.Description.ToLower().Contains(e.Description.ToLower())
+            ));
+
+        // Kontrollera om samma transaktion förekommer flera gånger i samma CSV
+        bool existsInBatch = newExpenses.Any(e => 
+            e.Date.Date == row.Date.Date && 
+            e.Amount == row.Amount && 
+            e.Description.Equals(row.Description, StringComparison.OrdinalIgnoreCase));
+
+        if (existsInDb || existsInBatch)
+        {
+            duplicatesSkipped++;
+            continue;
+        }
+
+        newExpenses.Add(new Expense
+        {
+            Description = row.Description,
+            Amount = row.Amount,
+            Date = row.Date,
+            CategoryId = defaultCategory.Id
+        });
+    }
+
+    if (!newExpenses.Any())
+    {
+        return Ok(new 
+        { 
+            count = 0, 
+            skipped = duplicatesSkipped, 
+            message = $"Alla {duplicatesSkipped} transaktioner fanns redan registrerade och hoppades över." 
+        });
+    }
+
+    // 4. Kör kategorisering (regelbaserat + AI) på kvarvarande unika rader
+    var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = 2 };
+
+    await Parallel.ForEachAsync(newExpenses, parallelOptions, async (expense, ct) =>
+    {
+        var descLower = expense.Description.ToLower();
+
+        if (foodCategory != null && (
+            descLower.Contains("ica") || descLower.Contains("malmborg") ||
+            descLower.Contains("coop") || descLower.Contains("willys") ||
+            descLower.Contains("lidl") || descLower.Contains("hemköp")))
+        {
+            expense.CategoryId = foodCategory.Id;
+            return;
+        }
+
+        try
+        {
+            var predicted = await _aiService.CategorizeExpenseAsync(expense.Description, categoryNames);
+            var match = categories.FirstOrDefault(c => c.Name.Equals(predicted, StringComparison.OrdinalIgnoreCase));
+            if (match != null) expense.CategoryId = match.Id;
+        }
+        catch { }
+    });
+
+    _context.Expenses.AddRange(newExpenses);
+    await _context.SaveChangesAsync();
+
+    return Ok(new 
+    { 
+        count = newExpenses.Count, 
+        skipped = duplicatesSkipped, 
+        message = $"Importerade {newExpenses.Count} nya transaktioner ({duplicatesSkipped} dubbletter hoppades över)." 
+    });
+}
 }

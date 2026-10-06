@@ -1,440 +1,404 @@
-import { useState, useEffect, useRef, type FormEvent, type ChangeEvent } from 'react';
+import React, { useState, useEffect } from 'react';
 import { api } from '../utils/api';
+
 interface Category {
-    id: number;
-    name: string;
+  id: number;
+  name: string;
 }
 
 interface ExpenseItem {
-    id?: number;
-    name: string;
-    price: number;
-    discount: number;
-    finalPrice: number;
+  id?: number;
+  name: string;
+  price: number;
+  discount: number;
+  finalPrice: number;
 }
 
 interface Expense {
-    id: number;
-    description: string;
-    amount: number;
-    date: string;
-    categoryId: number;
-    category?: Category;
-    items?: ExpenseItem[];
+  id: number;
+  description: string;
+  amount: number;
+  date: string;
+  categoryId: number;
+  category?: Category;
+  items?: ExpenseItem[];
 }
 
-interface ParsedReceipt {
-    store: string | null;
-    date: string | null;
-    totalAmount: number;
-    totalDiscount: number;
-    items: ExpenseItem[] | null;
-}
+export const ExpensePage: React.FC = () => {
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  
+  // Formulär-state
+  const [description, setDescription] = useState('');
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [categoryId, setCategoryId] = useState<number>(0);
+  
+  // Kvitto-state
+  const [receiptItems, setReceiptItems] = useState<ExpenseItem[]>([]);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [expandedExpenseId, setExpandedExpenseId] = useState<number | null>(null);
 
-export default function ExpensePage() {
-    const [expenses, setExpenses] = useState<Expense[]>([]);
-    const [categories, setCategories] = useState<Category[]>([]);
+  useEffect(() => {
+    loadData();
+  }, []);
 
-    const [loading, setLoading] = useState<boolean>(true);
-    const [submitting, setSubmitting] = useState<boolean>(false);
-    const [analyzingReceipt, setAnalyzingReceipt] = useState<boolean>(false);
-    const [error, setError] = useState<string | null>(null);
-    const [successMessage, setSuccessMessage] = useState<string | null>(null);
-    const [editingId, setEditingId] = useState<number | null>(null);
+  const loadData = async () => {
+    try {
+      const [expRes, catRes] = await Promise.all([
+        api.get<Expense[]>('/expenses'),
+        api.get<Category[]>('/categories')
+      ]);
+      setExpenses(expRes.data);
+      setCategories(catRes.data);
+    } catch (err) {
+      console.error('Kunde inte läsa in data:', err);
+    }
+  };
 
-    // Formulär-state
-    const [description, setDescription] = useState('');
-    const [amount, setAmount] = useState('');
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-    const [categoryId, setCategoryId] = useState<number>(0);
+  const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    // Kvitto-artiklar för aktuellt formulär
-    const [receiptItems, setReceiptItems] = useState<ExpenseItem[]>([]);
+    setPreviewUrl(URL.createObjectURL(file));
+    setIsScanning(true);
 
-    // Håller koll på vilka rader i tabellen som är utfällda
-    const [expandedExpenseIds, setExpandedExpenseIds] = useState<number[]>([]);
+    const formData = new FormData();
+    formData.append('file', file);
 
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    try {
+      const res = await api.post('/expenses/upload-receipt', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                setLoading(true);
-                const [expData, catData] = await Promise.all([
-                    api.expenses.getAll(),
-                    api.categories.getAll()
-                ]);
-                setExpenses(expData);
-                setCategories(catData);
-            } catch (err: any) {
-                setError("Kunde inte ladda data: " + err.message);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchData();
-    }, []);
+      const parsed = res.data;
+      if (parsed) {
+        // 1. Tvätta bort ev. kvarvarande markdown/asterisker
+        let cleanedStore = (parsed.store || '').replace(/[*_#~]/g, '').trim();
 
-    // Växla utfällning av kvittorader i tabellen
-    const toggleExpand = (id: number) => {
-        setExpandedExpenseIds(prev => 
-            prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-        );
-    };
-
-    // Hantera kvittoanalys
-    const handleReceiptUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        setAnalyzingReceipt(true);
-        setError(null);
-        setSuccessMessage(null);
-
-        try {
-            const parsed: ParsedReceipt = await api.expenses.uploadReceipt(file);
-
-            if (parsed.store) setDescription(parsed.store);
-            if (parsed.totalAmount) setAmount(parsed.totalAmount.toString());
-            if (parsed.date) setDate(parsed.date.split('T')[0]);
-
-            // Spara varorna i state
-            if (parsed.items && parsed.items.length > 0) {
-                setReceiptItems(parsed.items);
-            } else {
-                setReceiptItems([]);
-            }
-
-            // Automatisk matchning av kategori
-            const storeLower = (parsed.store || '').toLowerCase();
-            const matchedCat = categories.find(c => {
-                const name = c.name.toLowerCase();
-                if (storeLower.includes('ica') || storeLower.includes('coop') || storeLower.includes('willys') || storeLower.includes('lidl')) {
-                    return name === 'mat' || name === 'livsmedel';
-                }
-                return false;
-            });
-
-            setCategoryId(matchedCat ? matchedCat.id : 0);
-            setSuccessMessage(`Avläsning klar! Fyllde i ${parsed.store || 'kvittot'} (${parsed.totalAmount} kr) samt ${parsed.items?.length || 0} artiklar.`);
-        } catch (err: any) {
-            setError("Kvittoanalys misslyckades: " + err.message);
-        } finally {
-            setAnalyzingReceipt(false);
-            if (fileInputRef.current) fileInputRef.current.value = '';
+        // Fånga upp vanliga varianter/OCR-fel för Malmborgs
+        if (/malmbo[r]?g[r]?s/i.test(cleanedStore) || /erikslust/i.test(cleanedStore)) {
+          cleanedStore = 'ICA Malmborgs Erikslust';
         }
-    };
 
-    const startEditing = (expense: Expense) => {
-        setEditingId(expense.id);
-        setDescription(expense.description);
-        setAmount(expense.amount.toString());
-        setDate(new Date(expense.date).toISOString().split('T')[0]);
-        setCategoryId(expense.categoryId);
-        setReceiptItems(expense.items || []);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
+        if (cleanedStore) setDescription(cleanedStore);
+        if (parsed.totalAmount) setAmount(parsed.totalAmount.toString());
+        if (parsed.date) setDate(parsed.date.split('T')[0]);
 
-    const cancelEditing = () => {
-        setEditingId(null);
-        resetForm();
-    };
-
-    const resetForm = () => {
-        setDescription('');
-        setAmount('');
-        setDate(new Date().toISOString().split('T')[0]);
-        setCategoryId(0);
-        setReceiptItems([]);
-        setSuccessMessage(null);
-    };
-
-    const handleSubmit = async (e: FormEvent) => {
-        e.preventDefault();
-        setSubmitting(true);
-        setError(null);
-
-        const parsedAmount = amount ? parseFloat(amount.replace(',', '.')) : 0;
-        const payload = {
-            description,
-            amount: parsedAmount,
-            date: new Date(date).toISOString(),
-            categoryId,
-            items: receiptItems // Skickar med kvittoraderna till API:et
-        };
-
-        try {
-            if (editingId) {
-                await api.expenses.update(editingId, payload);
-                const updatedList = await api.expenses.getAll();
-                setExpenses(updatedList);
-                setEditingId(null);
-            } else {
-                const savedExpense = await api.expenses.create(payload);
-                setExpenses(prev => [savedExpense, ...prev]);
-            }
-            resetForm();
-        } catch (err: any) {
-            setError("Kunde inte spara: " + err.message);
-        } finally {
-            setSubmitting(false);
+        if (parsed.items && parsed.items.length > 0) {
+          setReceiptItems(parsed.items);
+        } else {
+          setReceiptItems([]);
         }
-    };
 
-    const handleDelete = async (id: number) => {
-        if (!window.confirm("Ta bort denna utgift?")) return;
-        try {
-            await api.expenses.delete(id);
-            setExpenses(prev => prev.filter(e => e.id !== id));
-        } catch (err: any) {
-            setError(err.message);
-        }
-    };
+        // 2. Bred matchning för matbutiker
+        const storeLower = cleanedStore.toLowerCase();
+        const groceryKeywords = [
+          'ica', 'maxi', 'kvantum', 'malmborg', 'malmbogrs',
+          'coop', 'willys', 'lidl', 'city gross', 'hemköp'
+        ];
+        const isGrocery = groceryKeywords.some(k => storeLower.includes(k));
 
-    if (loading) return <div className="card"><p>Laddar...</p></div>;
+        // 3. Matcha både 'mat' och 'livsmedel'
+        const matched = categories.find(c => {
+          const catName = c.name.toLowerCase();
+          if (isGrocery) {
+            return catName === 'mat' || catName === 'livsmedel' || catName === 'dagligvaror';
+          }
+          return false;
+        });
 
-    return (
-        <div className="view-container">
-            {error && (
-                <div style={{ background: '#ef4444', color: 'white', padding: '10px', borderRadius: '6px', marginBottom: '1rem' }}>
-                    {error}
+        setCategoryId(matched ? matched.id : 0);
+      }
+    } catch (err) {
+      console.error('Kunde inte läsa av kvitto:', err);
+      alert('Kunde inte läsa av kvittot automatiskt.');
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!description || !amount) return;
+
+    try {
+      const newExpense = {
+        description,
+        amount: parseFloat(amount),
+        date: new Date(date).toISOString(),
+        categoryId: categoryId === 0 ? 0 : categoryId,
+        items: receiptItems.length > 0 ? receiptItems : undefined
+      };
+
+      await api.post('/expenses', newExpense);
+      
+      // Återställ formulär
+      setDescription('');
+      setAmount('');
+      setDate(new Date().toISOString().split('T')[0]);
+      setCategoryId(0);
+      setReceiptItems([]);
+      setPreviewUrl(null);
+
+      loadData();
+    } catch (err) {
+      console.error('Kunde inte spara utgift:', err);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Är du säker på att du vill ta bort denna utgift?')) return;
+    try {
+      await api.delete(`/expenses/${id}`);
+      loadData();
+    } catch (err) {
+      console.error('Kunde inte ta bort:', err);
+    }
+  };
+
+  const toggleExpand = (id: number) => {
+    setExpandedExpenseId(expandedExpenseId === id ? null : id);
+  };
+
+  return (
+    <div className="view-container">
+      {/* 1. KORT: LÄGG TILL UTGIFT & KVITTO */}
+      <div className="card">
+        <h2>Ny utgift</h2>
+
+        {/* Kvittouppladdning */}
+        <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.5rem', color: '#475569' }}>
+            📷 Ladda upp kvitto (bild)
+          </label>
+          <input 
+            type="file" 
+            accept="image/*" 
+            onChange={handleReceiptUpload} 
+            disabled={isScanning}
+          />
+          {isScanning && <p style={{ color: '#3b82f6', marginTop: '0.5rem', fontWeight: 600 }}>🔍 Läser av kvittot med AI...</p>}
+
+          {previewUrl && (
+            <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+              <img src={previewUrl} alt="Förhandsgranskning" style={{ maxHeight: '120px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+              {receiptItems.length > 0 && (
+                <div style={{ fontSize: '0.85rem', color: '#475569' }}>
+                  <strong>Hittade artiklar ({receiptItems.length} st):</strong>
+                  <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                    {receiptItems.slice(0, 3).map((item, idx) => (
+                      <li key={idx}>{item.name} - {item.finalPrice} kr</li>
+                    ))}
+                    {receiptItems.length > 3 && <li>...och {receiptItems.length - 3} till</li>}
+                  </ul>
                 </div>
-            )}
-
-            {successMessage && (
-                <div style={{ background: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0', padding: '10px', borderRadius: '6px', marginBottom: '1rem' }}>
-                    {successMessage}
-                </div>
-            )}
-
-            <section className="card" style={{ marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '8px' }}>
-                    <h2 style={{ margin: 0 }}>{editingId ? 'Redigera utgift' : 'Ny utgift'}</h2>
-
-                    {!editingId && (
-                        <div>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/*"
-                                style={{ display: 'none' }}
-                                onChange={handleReceiptUpload}
-                                disabled={analyzingReceipt}
-                            />
-                            <button
-                                type="button"
-                                className="btn"
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={analyzingReceipt}
-                                style={{
-                                    backgroundColor: '#0284c7',
-                                    color: 'white',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    padding: '8px 14px',
-                                    cursor: analyzingReceipt ? 'not-allowed' : 'pointer'
-                                }}
-                            >
-                                {analyzingReceipt ? '⏳ Läser av kvitto...' : '📸 Läs av Kivra-kvitto'}
-                            </button>
-                        </div>
-                    )}
-                </div>
-
-                <form onSubmit={handleSubmit}>
-                    <div className="expense-form-grid">
-                        <div className="form-group">
-                            <label>Vad?</label>
-                            <input
-                                type="text"
-                                placeholder="T.ex. ICA Kvantum"
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                required
-                                className="form-input"
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <label>Belopp</label>
-                            <input
-                                type="number"
-                                placeholder="0"
-                                value={amount}
-                                onChange={(e) => setAmount(e.target.value)}
-                                required
-                                step="0.01"
-                                className="form-input"
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <label>Datum</label>
-                            <input
-                                type="date"
-                                value={date}
-                                onChange={(e) => setDate(e.target.value)}
-                                required
-                                className="form-input"
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <label>Kategori</label>
-                            <select
-                                value={categoryId}
-                                onChange={(e) => setCategoryId(Number(e.target.value))}
-                                required
-                                className="form-input"
-                            >
-                                <option value={0}>🤖 Låt AI gissa...</option>
-                                <option disabled>──────────────</option>
-                                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
-                        </div>
-
-                        <div className="form-group" style={{ flexDirection: 'row', gap: '10px' }}>
-                            <button type="submit" className="btn btn-primary" disabled={submitting || analyzingReceipt} style={{ flex: 1 }}>
-                                {submitting ? '...' : (editingId ? 'Spara' : 'Lägg till')}
-                            </button>
-                            {editingId && (
-                                <button type="button" className="btn" onClick={cancelEditing} style={{ background: '#94a3b8', color: 'white' }}>
-                                    X
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Förhandsgranskning av kvittorader innan man klickar Lägg till */}
-                    {receiptItems.length > 0 && (
-                        <div style={{ marginTop: '1.25rem', padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                <strong style={{ fontSize: '0.9rem', color: '#334155' }}>
-                                    📋 Avlästa artiklar ({receiptItems.length} st):
-                                </strong>
-                                <button 
-                                    type="button" 
-                                    onClick={() => setReceiptItems([])} 
-                                    style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: '0.8rem' }}
-                                >
-                                    Rensa rader
-                                </button>
-                            </div>
-                            <div style={{ maxHeight: '160px', overflowY: 'auto' }}>
-                                <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
-                                    <tbody>
-                                        {receiptItems.map((item, idx) => (
-                                            <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                                <td style={{ padding: '4px 0' }}>{item.name}</td>
-                                                <td style={{ textAlign: 'right', padding: '4px 0', fontWeight: 'bold' }}>
-                                                    {item.finalPrice} kr
-                                                    {item.discount > 0 && (
-                                                        <span style={{ color: '#16a34a', fontWeight: 'normal', marginLeft: '6px' }}>
-                                                            (-{item.discount})
-                                                        </span>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
-                </form>
-            </section>
-
-            <section className="card">
-                <h3 style={{ marginTop: 0 }}>Alla utgifter</h3>
-                <div className="table-wrapper">
-                    <table className="expense-table">
-                        <thead>
-                            <tr>
-                                <th>Datum</th>
-                                <th>Beskrivning</th>
-                                <th>Kategori</th>
-                                <th>Belopp</th>
-                                <th>Kvitto</th>
-                                <th>Val</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {expenses.map(e => {
-                                const isExpanded = expandedExpenseIds.includes(e.id);
-                                const hasItems = e.items && e.items.length > 0;
-
-                                return (
-                                    <>
-                                        <tr key={e.id}>
-                                            <td>{new Date(e.date).toLocaleDateString()}</td>
-                                            <td>{e.description}</td>
-                                            <td>
-                                                <span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '0.85rem' }}>
-                                                    {e.category?.name || 'Övrigt'}
-                                                </span>
-                                            </td>
-                                            <td style={{ fontWeight: 'bold' }}>{e.amount} kr</td>
-                                            <td>
-                                                {hasItems ? (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => toggleExpand(e.id)}
-                                                        style={{
-                                                            border: '1px solid #cbd5e1',
-                                                            background: isExpanded ? '#e2e8f0' : '#fff',
-                                                            borderRadius: '4px',
-                                                            padding: '2px 8px',
-                                                            cursor: 'pointer',
-                                                            fontSize: '0.8rem'
-                                                        }}
-                                                    >
-                                                        {isExpanded ? 'Dölj' : `📄 ${e.items!.length} varor`}
-                                                    </button>
-                                                ) : (
-                                                    <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>–</span>
-                                                )}
-                                            </td>
-                                            <td>
-                                                <button className="btn btn-warning" onClick={() => startEditing(e)} style={{ padding: '4px 8px', marginRight: '5px' }}>✏️</button>
-                                                <button className="btn btn-danger" onClick={() => handleDelete(e.id)} style={{ padding: '4px 8px' }}>🗑️</button>
-                                            </td>
-                                        </tr>
-
-                                        {/* Utfälld lista över kvitto-varor */}
-                                        {isExpanded && hasItems && (
-                                            <tr key={`${e.id}-items`} style={{ background: '#f8fafc' }}>
-                                                <td colSpan={6} style={{ padding: '12px 20px' }}>
-                                                    <div style={{ maxWidth: '450px' }}>
-                                                        <strong style={{ fontSize: '0.85rem', color: '#475569' }}>Kvittospecifikation:</strong>
-                                                        <table style={{ width: '100%', marginTop: '6px', fontSize: '0.85rem' }}>
-                                                            <tbody>
-                                                                {e.items!.map((item, itemIdx) => (
-                                                                    <tr key={itemIdx} style={{ borderBottom: '1px dashed #e2e8f0' }}>
-                                                                        <td style={{ padding: '3px 0' }}>{item.name}</td>
-                                                                        <td style={{ textAlign: 'right', padding: '3px 0' }}>
-                                                                            {item.finalPrice} kr
-                                                                            {item.discount > 0 && (
-                                                                                <span style={{ color: '#16a34a', fontSize: '0.75rem', marginLeft: '6px' }}>
-                                                                                    (-{item.discount})
-                                                                                </span>
-                                                                            )}
-                                                                        </td>
-                                                                    </tr>
-                                                                ))}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+              )}
+            </div>
+          )}
         </div>
-    );
-}
+
+        {/* Utgiftsformulär */}
+        <form onSubmit={handleSubmit} className="expense-form-grid">
+          <div className="form-group">
+            <label>Vad?</label>
+            <input 
+              type="text" 
+              className="form-input" 
+              placeholder="t.ex. ICA Malmborgs Erikslust" 
+              value={description} 
+              onChange={e => setDescription(e.target.value)} 
+              required 
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Belopp (kr)</label>
+            <input 
+              type="number" 
+              step="0.01" 
+              className="form-input" 
+              placeholder="0.00" 
+              value={amount} 
+              onChange={e => setAmount(e.target.value)} 
+              required 
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Datum</label>
+            <input 
+              type="date" 
+              className="form-input" 
+              value={date} 
+              onChange={e => setDate(e.target.value)} 
+              required 
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Kategori</label>
+            <select 
+              className="form-input" 
+              value={categoryId} 
+              onChange={e => setCategoryId(parseInt(e.target.value))}
+            >
+              <option value={0}>🤖 Låt AI gissa...</option>
+              {categories.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <button type="submit" className="btn btn-primary">
+            Spara
+          </button>
+        </form>
+      </div>
+
+      {/* 2. KORT: UTGIFTSLISTA */}
+      <div className="card">
+        <h2>Alla utgifter</h2>
+
+        {/* DESKTOP-TABELL */}
+        <div className="table-wrapper expense-table-desktop">
+          <table className="expense-table">
+            <thead>
+              <tr>
+                <th>Datum</th>
+                <th>Beskrivning</th>
+                <th>Kategori</th>
+                <th>Belopp</th>
+                <th>Åtgärder</th>
+              </tr>
+            </thead>
+            <tbody>
+              {expenses.map(exp => (
+                <React.Fragment key={exp.id}>
+                  <tr>
+                    <td>{new Date(exp.date).toLocaleDateString('sv-SE')}</td>
+                    <td>
+                      <strong>{exp.description}</strong>
+                      {exp.items && exp.items.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => toggleExpand(exp.id)}
+                          style={{
+                            marginLeft: '8px',
+                            background: 'none',
+                            border: 'none',
+                            color: '#3b82f6',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            padding: 0,
+                            textDecoration: 'underline'
+                          }}
+                        >
+                          {expandedExpenseId === exp.id ? 'Dölj kvitto ▲' : `Kvitto (${exp.items.length} varor) ▼`}
+                        </button>
+                      )}
+                    </td>
+                    <td>{exp.category?.name || 'Okänd'}</td>
+                    <td><strong>{exp.amount.toFixed(2)} kr</strong></td>
+                    <td>
+                      <button onClick={() => handleDelete(exp.id)} className="btn btn-delete" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
+                        Ta bort
+                      </button>
+                    </td>
+                  </tr>
+
+                  {/* Utfällt kvitto i desktop */}
+                  {expandedExpenseId === exp.id && exp.items && exp.items.length > 0 && (
+                    <tr>
+                      <td colSpan={5} style={{ background: '#f8fafc', padding: '1rem' }}>
+                        <div className="receipt-drawer">
+                          <h4 style={{ margin: '0 0 8px 0', fontSize: '0.9rem', color: '#475569' }}>Kvittospecifikation:</h4>
+                          {exp.items.map((it, idx) => (
+                            <div key={idx} className="receipt-item-row">
+                              <span>{it.name}</span>
+                              <span>
+                                {it.discount > 0 && (
+                                  <span className="receipt-discount-tag">-{it.discount.toFixed(2)} kr</span>
+                                )}
+                                <strong>{it.finalPrice.toFixed(2)} kr</strong>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* MOBILKORT */}
+        <div className="expense-list">
+          {expenses.map(exp => (
+            <div key={exp.id} className="expense-mobile-card">
+              <div className="expense-mobile-header">
+                <div>
+                  <strong>{exp.description}</strong>
+                  <div className="expense-mobile-meta">
+                    <span>{new Date(exp.date).toLocaleDateString('sv-SE')}</span>
+                    <span>•</span>
+                    <span>{exp.category?.name || 'Okänd'}</span>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <strong style={{ fontSize: '1.1rem', color: '#0f172a' }}>{exp.amount.toFixed(2)} kr</strong>
+                </div>
+              </div>
+
+              {exp.items && exp.items.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => toggleExpand(exp.id)}
+                  style={{
+                    width: '100%',
+                    marginTop: '8px',
+                    padding: '6px',
+                    background: '#f1f5f9',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    color: '#3b82f6',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem'
+                  }}
+                >
+                  {expandedExpenseId === exp.id ? 'Dölj kvitto ▲' : `Visa kvitto (${exp.items.length} varor) ▼`}
+                </button>
+              )}
+
+              {expandedExpenseId === exp.id && exp.items && exp.items.length > 0 && (
+                <div className="receipt-drawer">
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: '#475569' }}>Varor:</h4>
+                  {exp.items.map((it, idx) => (
+                    <div key={idx} className="receipt-item-row">
+                      <span>{it.name}</span>
+                      <span>
+                        {it.discount > 0 && (
+                          <span className="receipt-discount-tag">-{it.discount.toFixed(2)} kr</span>
+                        )}
+                        <strong>{it.finalPrice.toFixed(2)} kr</strong>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={() => handleDelete(exp.id)} className="btn btn-delete" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
+                  Ta bort
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};

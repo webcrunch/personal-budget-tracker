@@ -8,7 +8,7 @@ publish/
 *.suo
 *.psess
 *.vsp
-
+*.tsbuildinfo
 # Visual Studio Code settings
 .vscode/
 

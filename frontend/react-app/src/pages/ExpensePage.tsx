@@ -86,11 +86,20 @@ const ExpensePage: React.FC = () => {
         if (parsed.date) setDate(parsed.date.split('T')[0]);
 
         if (parsed.items && parsed.items.length > 0) {
-          setReceiptItems(parsed.items);
-        } else {
-          setReceiptItems([]);
-        }
+            const stopWords = ['att betala', 'kort', 'kontant', 'totalt', 'summa', 'moms', 'avrundning', 'kört', 'mastercard', 'visa'];
+            const cleanItems = parsed.items.filter((item: ExpenseItem) => {
+              const nameLower = (item.name || '').toLowerCase().trim();
+              const containsStopWord = stopWords.some(w => nameLower.includes(w));
+              const isIdenticalToTotal = parsed.items.length > 1 && item.finalPrice === parsed.totalAmount;
+              return !(containsStopWord || isIdenticalToTotal);
+            });
 
+            setReceiptItems(cleanItems);
+          } else {
+            setReceiptItems([]);
+          }
+
+          
         const storeLower = cleanedStore.toLowerCase();
         const groceryKeywords = [
           'ica', 'maxi', 'kvantum', 'malmborg', 'malmbogrs',

@@ -25,7 +25,6 @@ public class AiService
         {
             string categoriesString = string.Join(", ", availableCategories);
 
-            // Kolla dynamiskt om databasen har 'Mat' eller 'Livsmedel'
             var foodCategory = availableCategories.FirstOrDefault(c =>
                 c.Equals("Mat", StringComparison.OrdinalIgnoreCase) ||
                 c.Equals("Livsmedel", StringComparison.OrdinalIgnoreCase) ||
@@ -41,9 +40,9 @@ public class AiService
                 prompt = $"Du är en budget-assistent. Kategorisera utgiften: '{description}'.\n" +
                          $"Du får ENDAST svara med EXAKT ett av följande kategorinamn som finns i listan: {categoriesString}.\n" +
                          $"VIKTIGA REGLER:\n" +
-                         $"- Om utgiften verkar vara från en restaurang, café, krog, snabbmat eller Foodora, välj '{restaurantCategory}'.\n" +
-                         $"- Om det är dagligvaror, mat, kvitto från en mataffär eller livsmedel (t.ex. köttbullar, ketchup, ICA, Malmborgs, Coop, Willys, Lidl), välj '{foodCategory}'.\n" +
-                         $"- Svara BARA med kategorinamnet utan citationstecken, markdown eller punkter.",
+                         $"Om utgiften verkar vara från en restaurang, café, krog, snabbmat eller Foodora, välj '{restaurantCategory}'.\n" +
+                         $"Om det är dagligvaror, mat, kvitto från en mataffär eller livsmedel (t.ex. köttbullar, ketchup, ICA, Malmborgs, Coop, Willys, Lidl), välj '{foodCategory}'.\n" +
+                         $"Svara BARA med kategorinamnet utan citationstecken, markdown eller punkter.",
                 stream = false,
                 options = new
                 {
@@ -75,12 +74,10 @@ public class AiService
     {
         try
         {
-            // 1. Konvertera bildströmmen till Base64
             using var ms = new MemoryStream();
             await imageStream.CopyToAsync(ms);
             string base64Image = Convert.ToBase64String(ms.ToArray());
 
-            // 2. Prompt med specifika regler för butiksnamn och städning
             string prompt =
                 "Du är en assistent specialiserad på svenska digitala kvitton och papperskvitton.\n" +
                 "Läs av kvittobilden noggrant och extrahera informationen till ett JSON-objekt med följande fält:\n" +
@@ -90,7 +87,9 @@ public class AiService
                 "- date: Datum i formatet YYYY-MM-DD.\n" +
                 "- totalAmount: Slutgiltig totalsumma att betala som ett decimaltal.\n" +
                 "- totalDiscount: Total rabatt som ett decimaltal (0.0 om ingen rabatt finns).\n" +
-                "- items: Lista av köpta varor. Varje vara ska ha fälten 'name' (varunamn), 'price' (ordinarie pris), 'discount' (rabatt), 'finalPrice' (slutpris).\n\n" +
+                "- items: Lista av KÖPTA VAROR. Varje vara ska ha fälten 'name' (varunamn), 'price' (ordinarie pris), 'discount' (rabatt), 'finalPrice' (slutpris).\n\n" +
+                "STRÄNG REGEL FÖR ITEMS:\n" +
+                "Inkludera ALDRIG summeringsrader eller betalrader under 'items'. Fraser som 'ATT BETALA', 'ATT BETALA KORT', 'TOTALT', 'SUMMA', 'AVRUNDNING', 'MOMS', 'KORT' eller 'MASTERCARD' är INTE varor och får ALDRIG tas med i items-listan!\n\n" +
                 "Svara ENDAST med giltig JSON utan markdown-block eller text runt omkring.";
 
             var requestBody = new
@@ -123,7 +122,6 @@ public class AiService
 
                     if (parsed != null)
                     {
-                        // Tvätta och normalisera butiksnamnet i backend
                         var cleanStore = parsed.Store ?? "";
                         cleanStore = Regex.Replace(cleanStore, @"[*_#]", "").Trim();
 
@@ -133,7 +131,35 @@ public class AiService
                             cleanStore = "ICA Malmborgs Erikslust";
                         }
 
-                        return parsed with { Store = cleanStore };
+                        // Tvätta bort eventuella summerings- och betalrader ur Items
+                        var cleanedItems = new List<ReceiptLineItem>();
+                        if (parsed.Items != null && parsed.Items.Any())
+                        {
+                            var stopWords = new[]
+                            {
+                                "att betala", "kort", "kontant", "totalt", "summa",
+                                "moms", "subtotal", "avrundning", "kört", "mastercard", "visa"
+                            };
+
+                            cleanedItems = parsed.Items
+                                .Where(item =>
+                                {
+                                    if (string.IsNullOrWhiteSpace(item.Name)) return false;
+                                    var nameLower = item.Name.ToLower().Trim();
+
+                                    bool containsStopWord = stopWords.Any(w => nameLower.Contains(w));
+                                    bool isIdenticalToTotal = parsed.Items.Count > 1 && item.FinalPrice == parsed.TotalAmount;
+
+                                    return !(containsStopWord || isIdenticalToTotal);
+                                })
+                                .ToList();
+                        }
+
+                        return parsed with 
+                        { 
+                            Store = cleanStore,
+                            Items = cleanedItems
+                        };
                     }
                 }
             }

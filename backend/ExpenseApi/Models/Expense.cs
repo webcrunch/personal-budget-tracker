@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema; // För [ForeignKey]
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace ExpenseApi.Models
 {
@@ -26,6 +26,9 @@ namespace ExpenseApi.Models
         // Navigationsegenskap till Category-modellen
         [ForeignKey("CategoryId")]
         public virtual Category? Category { get; set; }
+
+        // Ny flagga: true för kommande/planerade avier, false när den dragits från banken
+        public bool IsPending { get; set; } = false;
 
         // Navigationsegenskap till de enskilda kvittoraderna
         public virtual ICollection<ExpenseItem> Items { get; set; } = new List<ExpenseItem>();

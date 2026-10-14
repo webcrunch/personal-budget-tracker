@@ -9,5 +9,6 @@ namespace ExpenseApi.Models
         [Required]
         [MaxLength(100)] // Begränsar längden på kategorinamnet
         public required string Name { get; set; }
+        public bool IsFixed { get; set; } = false;
     }
 }

@@ -79,18 +79,18 @@ public class AiService
             string base64Image = Convert.ToBase64String(ms.ToArray());
 
             string prompt =
-                "Du är en assistent specialiserad på svenska digitala kvitton och papperskvitton.\n" +
-                "Läs av kvittobilden noggrant och extrahera informationen till ett JSON-objekt med följande fält:\n" +
-                "- store: Butikens namn som ren text (t.ex. 'ICA Malmborgs Erikslust', 'Lidl', 'Willys'). " +
-                "  Rensa bort alla stjärnor (**), telefonnummer, organisationsnummer och dekorativa tecken. " +
-                "  Om kvittot säger 'MALMBORGS', skriv 'ICA Malmborgs Erikslust'.\n" +
-                "- date: Datum i formatet YYYY-MM-DD.\n" +
-                "- totalAmount: Slutgiltig totalsumma att betala som ett decimaltal.\n" +
-                "- totalDiscount: Total rabatt som ett decimaltal (0.0 om ingen rabatt finns).\n" +
-                "- items: Lista av KÖPTA VAROR. Varje vara ska ha fälten 'name' (varunamn), 'price' (ordinarie pris), 'discount' (rabatt), 'finalPrice' (slutpris).\n\n" +
-                "STRÄNG REGEL FÖR ITEMS:\n" +
-                "Inkludera ALDRIG summeringsrader eller betalrader under 'items'. Fraser som 'ATT BETALA', 'ATT BETALA KORT', 'TOTALT', 'SUMMA', 'AVRUNDNING', 'MOMS', 'KORT' eller 'MASTERCARD' är INTE varor och får ALDRIG tas med i items-listan!\n\n" +
-                "Svara ENDAST med giltig JSON utan markdown-block eller text runt omkring.";
+                "Du är en assistent specialiserad på svenska kvitton, fakturor och hyresavier.\n" +
+                "Extrahera informationen till JSON med följande struktur:\n" +
+                "- store: Föreningens/värdens namn eller typ (t.ex. 'Brf Månadsavi' eller 'Hyresavi').\n" +
+                "- date: Förfallodatum eller periodens startdatum i formatet YYYY-MM-DD.\n" +
+                "- totalAmount: Totalsumma att betala (Summa).\n" +
+                "- items: Lista av specifikationsrader. För varje rad:\n" +
+                "  * name: T.ex. 'Årsavgift bostad' eller 'El IMD (augusti, 129.4 kWh)'\n" +
+                "  * finalPrice: Beloppet för raden. VIKTIGT: Om det finns moms för elen (t.ex. El 256 kr + Moms 64 kr), räkna in momsen i elradens finalPrice (256 + 64 = 320 kr).\n" +
+                "- isPending: Sätt till true om datumet ligger framåt i tiden.\n\n" +
+                "STRÄNGA REGLER:\n" +
+                "Ta inte med rena summeringsrader ('Summa', 'Totalt') i items-listan.\n" +
+                "Svara ENDAST med giltig JSON.";
 
             var requestBody = new
             {

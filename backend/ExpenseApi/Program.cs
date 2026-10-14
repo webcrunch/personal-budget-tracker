@@ -5,7 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
-using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using Swashbuckle.AspNetCore.SwaggerUI;
 using System.Text.Json.Serialization;
@@ -72,25 +71,46 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ExpenseContext>();
 
-    // Kör migreringar (Skapar tabeller om de inte finns)
+    // Kör migreringar automatiskt
     dbContext.Database.Migrate();
 
-    // En lista på alla kategorier vi vill ha i systemet
-    var desiredCategories = new[]
+    // Kategorier uppdelade i fasta och rörliga
+    var defaultCategories = new (string Name, bool IsFixed)[]
     {
-        "Boende", "El & Värme", "Försäkringar", "Abonnemang",
-        "Transport", "Drivmedel", "Bilunderhåll",
-        "Livsmedel", "Uteätande", "Systembolaget",
-        "Kläder & Skor", "Elektronik", "Nöje", "Husdjur", "Hobby",
-        "Hälsa & Apotek", "Träning",
-        "Sparande", "Lån & Räntor", "Övrigt", "Mat"
+        ("Boende", true),
+        ("El & Värme", true),
+        ("Försäkringar", true),
+        ("Abonnemang", true),
+        ("Lån & Räntor", true),
+        ("Transport", false),
+        ("Drivmedel", false),
+        ("Bilunderhåll", false),
+        ("Livsmedel", false),
+        ("Uteätande", false),
+        ("Systembolaget", false),
+        ("Kläder & Skor", false),
+        ("Elektronik", false),
+        ("Nöje", false),
+        ("Husdjur", false),
+        ("Hobby", false),
+        ("Hälsa & Apotek", false),
+        ("Träning", false),
+        ("Sparande", false),
+        ("Övrigt", false),
+        ("Mat", false)
     };
 
-    foreach (var catName in desiredCategories)
+    foreach (var cat in defaultCategories)
     {
-        if (!dbContext.Categories.Any(c => c.Name == catName))
+        var existing = dbContext.Categories.FirstOrDefault(c => c.Name == cat.Name);
+        if (existing == null)
         {
-            dbContext.Categories.Add(new ExpenseApi.Models.Category { Name = catName });
+            dbContext.Categories.Add(new ExpenseApi.Models.Category { Name = cat.Name, IsFixed = cat.IsFixed });
+        }
+        else if (existing.IsFixed != cat.IsFixed)
+        {
+            // Uppdatera befintliga kategorier med rätt IsFixed-status
+            existing.IsFixed = cat.IsFixed;
         }
     }
 

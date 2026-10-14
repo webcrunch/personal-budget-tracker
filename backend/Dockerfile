@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 # Kopiera projektfilen först för att dra nytta av Docker-cachen
 # Kontexten för bygget är ./backend, så vi kopierar ExpenseApi/ExpenseApi.csproj
@@ -12,7 +12,7 @@ COPY ExpenseApi/. ./ExpenseApi/
 WORKDIR /src/ExpenseApi
 RUN dotnet publish -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:9.0
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 COPY --from=build /app/publish ./
 

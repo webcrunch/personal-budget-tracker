@@ -27,6 +27,13 @@ public class ExpensesController : ControllerBase
         if (!_context.Categories.Any())
         {
             _context.Categories.AddRange(
+                new Category { Name = "Boende", IsFixed = true },
+                new Category { Name = "El & Värme", IsFixed = true },
+                new Category { Name = "Försäkringar", IsFixed = true },
+                new Category { Name = "Abonnemang", IsFixed = true },
+                new Category { Name = "Lån & Räntor", IsFixed = true },
+                new Category { Name = "Livsmedel", IsFixed = false },
+                new Category { Name = "Uteätande", IsFixed = false },
                 new Category { Name = "Boende" },
                 new Category { Name = "El & Värme" },
                 new Category { Name = "Försäkringar" },

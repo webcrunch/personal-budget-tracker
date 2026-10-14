@@ -122,6 +122,7 @@ public class AiService
                         PropertyNameCaseInsensitive = true,
                         NumberHandling = JsonNumberHandling.AllowReadingFromString
                     };
+                    options.Converters.Add(new LenientDecimalConverter());
 
                     var parsed = JsonSerializer.Deserialize<ParsedReceipt>(ollamaResult.response, options);
 
@@ -158,7 +159,7 @@ public class AiService
                                 })
                                 .ToList();
 
-                            // 1. Slå ihop eventuell separat moms-rad med El IMD
+                            // 1. Slå ihop separat moms-rad med El IMD
                             var vatItem = cleanedItems.FirstOrDefault(i => i.Name.ToLower().Contains("moms"));
                             var elItem = cleanedItems.FirstOrDefault(i => i.Name.ToLower().Contains("el") || i.Name.ToLower().Contains("imd"));
 
@@ -169,7 +170,7 @@ public class AiService
                                 cleanedItems.Remove(vatItem);
                             }
 
-                            // 2. Säkerhetsspärr: Korrigera rader som överstiger totalsumman (t.ex. årskostnad 52 180 kr)
+                            // 2. Säkerhetsspärr: Korrigera rader som överstiger totalsumman
                             foreach (var item in cleanedItems)
                             {
                                 if (parsed.TotalAmount > 0 && item.FinalPrice > parsed.TotalAmount)
@@ -267,4 +268,37 @@ public class ReceiptLineItem
     public decimal Price { get; set; }
     public decimal Discount { get; set; }
     public decimal FinalPrice { get; set; }
+}
+
+public class LenientDecimalConverter : JsonConverter<decimal>
+{
+    public override decimal Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Number)
+        {
+            return reader.GetDecimal();
+        }
+
+        if (reader.TokenType == JsonTokenType.String)
+        {
+            string? str = reader.GetString();
+            if (string.IsNullOrWhiteSpace(str)) return 0m;
+
+            str = str.Replace(" ", "").Replace("kr", "", StringComparison.OrdinalIgnoreCase).Trim();
+            str = str.Replace(",", ".");
+
+            var match = System.Text.RegularExpressions.Regex.Match(str, @"-?\d+(\.\d+)?");
+            if (match.Success && decimal.TryParse(match.Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var val))
+            {
+                return val;
+            }
+        }
+
+        return 0m;
+    }
+
+    public override void Write(Utf8JsonWriter writer, decimal value, JsonSerializerOptions options)
+    {
+        writer.WriteNumberValue(value);
+    }
 }

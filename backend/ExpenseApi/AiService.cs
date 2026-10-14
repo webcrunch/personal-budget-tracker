@@ -131,7 +131,6 @@ public class AiService
                             cleanStore = "ICA Malmborgs Erikslust";
                         }
 
-                        // Tvätta bort eventuella summerings- och betalrader ur Items
                         var cleanedItems = new List<ReceiptLineItem>();
                         if (parsed.Items != null && parsed.Items.Any())
                         {
@@ -182,15 +181,17 @@ public class AiService
         try
         {
             var prompt = 
-                "Du är en skarpsynt, saklig och hjälpsam privatekonomisk rådgivare.\n" +
-                "Analysera följande ekonomiska sammanställning för den aktuella månaden:\n\n" +
+                "Du är en professionell och klarsynt privatekonomisk rådgivare.\n" +
+                "Analysera följande ekonomiska status för månaden:\n\n" +
                 $"{financialSummaryText}\n\n" +
-                "Ge 2 till max 3 korta, konkreta observationer eller råd under rubriken 'Tänk på detta'.\n" +
-                "Regler:\n" +
-                "- Fokusera på budgetöverskridanden, snabb förbrukningstakt eller stora utgiftsposter.\n" +
-                "- Var saklig, uppmuntrande och rak på sak.\n" +
-                "- Inga hälsningsfraser eller avslutningsfraser. Endast punktlista med markdown-bullets (*).\n" +
-                "- Svara på svenska.";
+                "Skriv 2–3 korta, analytiska och konkreta punkter under 'Tänk på detta'.\n\n" +
+                "STRIKTA REGLER:\n" +
+                "- Upprepa ALDRIG samma fras eller rekommendation i flera punkter.\n" +
+                "- Förbjudna fraser: 'Det kan vara värt att undersöka', 'möjligheter att minska utgifterna'.\n" +
+                "- Sätt siffrorna i relation till hur många dagar som gått och vad som är rimligt (t.ex. 99 kr uteätande är inte ett problem).\n" +
+                "- Om en budget ser sund ut eller om en utgift är helt normal, konstatera det kort.\n" +
+                "- Fokusera på faktisk förbrukningstakt: ligger man före eller efter plan?\n" +
+                "- Skriv på ledig och professionell svenska i punktform (börja med '- ').";
 
             var requestBody = new
             {
@@ -199,7 +200,7 @@ public class AiService
                 stream = false,
                 options = new
                 {
-                    temperature = 0.3
+                    temperature = 0.4
                 }
             };
 

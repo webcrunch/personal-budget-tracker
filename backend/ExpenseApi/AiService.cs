@@ -79,17 +79,22 @@ public class AiService
             string base64Image = Convert.ToBase64String(ms.ToArray());
 
             string prompt =
-                "Du är en assistent specialiserad på svenska kvitton, fakturor och hyresavier.\n" +
-                "Extrahera informationen till JSON med följande struktur:\n" +
-                "- store: Föreningens/värdens namn eller typ (t.ex. 'Brf Månadsavi' eller 'Hyresavi').\n" +
-                "- date: Förfallodatum eller periodens startdatum i formatet YYYY-MM-DD.\n" +
-                "- totalAmount: Totalsumma att betala (Summa).\n" +
+                "Du är en expert på svenska kvitton, fakturor och hyresavier.\n" +
+                "Extrahera informationen noggrant till JSON med följande fält:\n" +
+                "- store: Föreningens namn eller 'Brf Månadsavi'.\n" +
+                "- date: Datum i formatet YYYY-MM-DD (förfallodatum eller periodens startdatum).\n" +
+                "- totalAmount: Slutgiltig totalsumma att betala (Summa längst ner).\n" +
+                "- totalDiscount: 0.0 om ingen rabatt finns.\n" +
                 "- items: Lista av specifikationsrader. För varje rad:\n" +
-                "  * name: T.ex. 'Årsavgift bostad' eller 'El IMD (augusti, 129.4 kWh)'\n" +
-                "  * finalPrice: Beloppet för raden. VIKTIGT: Om det finns moms för elen (t.ex. El 256 kr + Moms 64 kr), räkna in momsen i elradens finalPrice (256 + 64 = 320 kr).\n" +
-                "- isPending: Sätt till true om datumet ligger framåt i tiden.\n\n" +
-                "STRÄNGA REGLER:\n" +
-                "Ta inte med rena summeringsrader ('Summa', 'Totalt') i items-listan.\n" +
+                "  * name: Radens beskrivning (t.ex. 'Årsavgift bostad', 'El IMD').\n" +
+                "  * price: Radens månadsbelopp.\n" +
+                "  * discount: 0.0\n" +
+                "  * finalPrice: Beloppet som ska betalas för denna rad.\n\n" +
+                "VIKTIGA REGLER FÖR HYRESAVIER OCH BELOPP:\n" +
+                "1. Läs ALLTID radens pris från BELOPPSKOLUMNEN LÄNGST TILL HÖGER. Ignorera referenssiffror mitt i texten såsom 'kr/år: 52 180'. Månadsbeloppet är det som står längst till höger (t.ex. 4348).\n" +
+                "2. Enskilda rader får ALDRIG ha ett pris som är högre än 'totalAmount'.\n" +
+                "3. Om det finns en moms-rad för el (t.ex. El 256 kr, Moms 64 kr), baka gärna in momsen i elens slutpris så den blir 320 kr, eller ta med el och moms som separata rader.\n" +
+                "4. Ta INTE med summeringsraden 'Summa' som en vara i items-listan.\n\n" +
                 "Svara ENDAST med giltig JSON.";
 
             var requestBody = new
@@ -137,7 +142,7 @@ public class AiService
                             var stopWords = new[]
                             {
                                 "att betala", "kort", "kontant", "totalt", "summa",
-                                "moms", "subtotal", "avrundning", "kört", "mastercard", "visa"
+                                "subtotal", "avrundning", "kört", "mastercard", "visa"
                             };
 
                             cleanedItems = parsed.Items
@@ -152,6 +157,32 @@ public class AiService
                                     return !(containsStopWord || isIdenticalToTotal);
                                 })
                                 .ToList();
+
+                            // 1. Slå ihop eventuell separat moms-rad med El IMD
+                            var vatItem = cleanedItems.FirstOrDefault(i => i.Name.ToLower().Contains("moms"));
+                            var elItem = cleanedItems.FirstOrDefault(i => i.Name.ToLower().Contains("el") || i.Name.ToLower().Contains("imd"));
+
+                            if (vatItem != null && elItem != null)
+                            {
+                                elItem.FinalPrice += vatItem.FinalPrice;
+                                elItem.Price = elItem.FinalPrice;
+                                cleanedItems.Remove(vatItem);
+                            }
+
+                            // 2. Säkerhetsspärr: Korrigera rader som överstiger totalsumman (t.ex. årskostnad 52 180 kr)
+                            foreach (var item in cleanedItems)
+                            {
+                                if (parsed.TotalAmount > 0 && item.FinalPrice > parsed.TotalAmount)
+                                {
+                                    var otherItemsSum = cleanedItems
+                                        .Where(i => i != item && i.FinalPrice <= parsed.TotalAmount)
+                                        .Sum(i => i.FinalPrice);
+
+                                    var calculatedMonthly = parsed.TotalAmount - otherItemsSum;
+                                    item.FinalPrice = calculatedMonthly > 0 ? calculatedMonthly : parsed.TotalAmount;
+                                    item.Price = item.FinalPrice;
+                                }
+                            }
                         }
 
                         return parsed with 
@@ -230,9 +261,10 @@ public record ParsedReceipt(
     List<ReceiptLineItem>? Items
 );
 
-public record ReceiptLineItem(
-    string Name,
-    decimal Price,
-    decimal Discount,
-    decimal FinalPrice
-);
+public class ReceiptLineItem
+{
+    public string Name { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public decimal Discount { get; set; }
+    public decimal FinalPrice { get; set; }
+}

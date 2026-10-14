@@ -53,6 +53,26 @@ export default function DashboardPage() {
     load();
   }, []);
 
+  const [coachAdvice, setCoachAdvice] = useState<string | null>(null);
+    const [loadingCoach, setLoadingCoach] = useState(false);
+
+    const fetchCoachAdvice = async () => {
+    try {
+        setLoadingCoach(true);
+        const data = await api.insights.getCoachAdvice();
+        setCoachAdvice(data.advice);
+    } catch (err) {
+        console.error(err);
+    } finally {
+        setLoadingCoach(false);
+    }
+    };
+
+    useEffect(() => {
+    fetchCoachAdvice();
+    }, []);
+
+
   // Filtrera transaktioner utifrån vald period
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -219,6 +239,47 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+    
+    {/* AI COACH / TÄNK PÅ DETTA */}
+<div style={{
+  background: 'linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%)',
+  border: '1px solid #bae6fd',
+  borderRadius: '12px',
+  padding: '1.25rem',
+  marginBottom: '24px',
+  boxShadow: '0 2px 4px rgba(0,0,0,0.03)'
+}}>
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+    <strong style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0369a1', fontSize: '1.05rem' }}>
+      💡 Tänk på detta (AI Coach)
+    </strong>
+    <button 
+      onClick={fetchCoachAdvice} 
+      disabled={loadingCoach}
+      style={{
+        background: '#fff',
+        border: '1px solid #cbd5e1',
+        borderRadius: '6px',
+        padding: '4px 10px',
+        fontSize: '0.8rem',
+        cursor: 'pointer',
+        color: '#475569'
+      }}
+    >
+      {loadingCoach ? 'Analyserar...' : '↻ Uppdatera'}
+    </button>
+  </div>
+
+  <div style={{ color: '#1e293b', fontSize: '0.95rem', lineHeight: '1.6' }}>
+    {loadingCoach && !coachAdvice ? (
+      <p style={{ margin: 0, color: '#64748b' }}>AI-coachen analyserar dina utgifter och budgetar...</p>
+    ) : (
+      <div style={{ whiteSpace: 'pre-line' }}>
+        {coachAdvice}
+      </div>
+    )}
+  </div>
+</div>
 
       {/* KPI-KORT */}
       <div

@@ -12,7 +12,7 @@ export const api = {
         const response = await fetch(url, {
             ...options,
             headers: {
-                // Skickar endast JSON-header om vi inte skickar FormData (vid filuppladdning)
+                // Vi skickar endast JSON-header om vi inte skickar FormData (vid filuppladdning)
                 ...(options?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
                 ...options?.headers,
             },
@@ -31,6 +31,7 @@ export const api = {
 
     /**
      * Utgifter (Expenses)
+     * Notera plural 'expenses' för att matcha .NET-standard
      */
     expenses: {
         getAll: () => api.request('/expenses'),
@@ -45,7 +46,7 @@ export const api = {
         update: (id: number, data: any) => {
             const payload = {
                 ...data, 
-                id,
+                id, // säkerställ att id alltid finns i body 
                 date: data?.date ? new Date(data.date).toISOString() : null
             };
             return api.request(`/expenses/${id}`, { 
@@ -58,6 +59,9 @@ export const api = {
             method: 'DELETE',
         }),
 
+        /**
+         * Förberedd funktion för din CSV-import
+         */
         importCsv: (file: File) => {
             const formData = new FormData();
             formData.append('file', file);
@@ -67,6 +71,9 @@ export const api = {
             });
         },
 
+        /**
+         * Ny metod: Analysera kvitto / Kivra-skärmdump med AI
+         */
         uploadReceipt: (file: File) => {
             const formData = new FormData();
             formData.append('file', file);
@@ -82,6 +89,13 @@ export const api = {
      */
     categories: {
         getAll: () => api.request('/categories'),
+    },
+
+    /**
+     * AI Insikter & Rådgivning (Coach)
+     */
+    insights: {
+        getCoachAdvice: () => api.request('/insights/coach'),
     },
 
     /**

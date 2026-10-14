@@ -176,6 +176,47 @@ public class AiService
 
         return null;
     }
+
+    public async Task<string> GenerateFinancialAdviceAsync(string financialSummaryText)
+    {
+        try
+        {
+            var prompt = 
+                "Du är en skarpsynt, saklig och hjälpsam privatekonomisk rådgivare.\n" +
+                "Analysera följande ekonomiska sammanställning för den aktuella månaden:\n\n" +
+                $"{financialSummaryText}\n\n" +
+                "Ge 2 till max 3 korta, konkreta observationer eller råd under rubriken 'Tänk på detta'.\n" +
+                "Regler:\n" +
+                "- Fokusera på budgetöverskridanden, snabb förbrukningstakt eller stora utgiftsposter.\n" +
+                "- Var saklig, uppmuntrande och rak på sak.\n" +
+                "- Inga hälsningsfraser eller avslutningsfraser. Endast punktlista med markdown-bullets (*).\n" +
+                "- Svara på svenska.";
+
+            var requestBody = new
+            {
+                model = _modelName,
+                prompt = prompt,
+                stream = false,
+                options = new
+                {
+                    temperature = 0.3
+                }
+            };
+
+            var response = await _httpClient.PostAsJsonAsync("api/generate", requestBody);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<OllamaResponse>();
+                return result?.response?.Trim() ?? "Inga särskilda avvikelser hittades just nu.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Kunde inte generera råd: {ex.Message}");
+        }
+
+        return "Kunde inte generera råd just nu. Kontrollera att AI-tjänsten är igång.";
+    }
 }
 
 public record OllamaResponse(string response);

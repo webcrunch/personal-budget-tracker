@@ -113,6 +113,8 @@ const ExpensePage: React.FC = () => {
       alert('Kunde inte läsa av kvittot automatiskt.');
     } finally {
       setIsScanning(false);
+      // Nollställ input så samma bild kan väljas igen vid behov
+      e.target.value = '';
     }
   };
 
@@ -205,21 +207,78 @@ const ExpensePage: React.FC = () => {
       <div className="card">
         <h2>Ny utgift</h2>
 
+        {/* Kvittouppladdning: Kamera & Filväljare */}
         <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
-          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.5rem', color: '#475569' }}>
-            📷 Ladda upp kvitto (bild)
+          <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '0.75rem', color: '#475569' }}>
+            🧾 Läs in kvitto
           </label>
-          <input 
-            type="file" 
-            accept="image/*" 
-            onChange={handleReceiptUpload} 
-            disabled={isScanning}
-          />
-          {isScanning && <p style={{ color: '#3b82f6', marginTop: '0.5rem', fontWeight: 600 }}>🔍 Läser av kvittot med AI...</p>}
+
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            {/* Knapp 1: Kamera direkt på mobilen */}
+            <label 
+              className="btn btn-primary" 
+              style={{ 
+                flex: '1 1 140px', 
+                textAlign: 'center', 
+                cursor: isScanning ? 'not-allowed' : 'pointer',
+                opacity: isScanning ? 0.6 : 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}
+            >
+              📸 Ta foto
+              <input 
+                type="file" 
+                accept="image/*" 
+                capture="environment" 
+                style={{ display: 'none' }}
+                onChange={handleReceiptUpload} 
+                disabled={isScanning}
+              />
+            </label>
+
+            {/* Knapp 2: Välj bild från galleri eller fil */}
+            <label 
+              className="btn" 
+              style={{ 
+                flex: '1 1 140px', 
+                textAlign: 'center', 
+                cursor: isScanning ? 'not-allowed' : 'pointer',
+                opacity: isScanning ? 0.6 : 1,
+                background: '#e2e8f0', 
+                color: '#1e293b',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}
+            >
+              📁 Välj bild
+              <input 
+                type="file" 
+                accept="image/*" 
+                style={{ display: 'none' }}
+                onChange={handleReceiptUpload} 
+                disabled={isScanning}
+              />
+            </label>
+          </div>
+
+          {isScanning && (
+            <p style={{ color: '#3b82f6', marginTop: '0.75rem', fontWeight: 600 }}>
+              🔍 Läser av kvittot med AI...
+            </p>
+          )}
 
           {previewUrl && (
             <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
-              <img src={previewUrl} alt="Förhandsgranskning" style={{ maxHeight: '120px', borderRadius: '6px', border: '1px solid #cbd5e1' }} />
+              <img 
+                src={previewUrl} 
+                alt="Förhandsgranskning" 
+                style={{ maxHeight: '120px', borderRadius: '6px', border: '1px solid #cbd5e1' }} 
+              />
               {receiptItems.length > 0 && (
                 <div style={{ fontSize: '0.85rem', color: '#475569' }}>
                   <strong>Hittade artiklar ({receiptItems.length} st):</strong>
@@ -235,6 +294,7 @@ const ExpensePage: React.FC = () => {
           )}
         </div>
 
+        {/* Utgiftsformulär */}
         <form onSubmit={handleSubmit} className="expense-form-grid">
           <div className="form-group">
             <label>Vad?</label>

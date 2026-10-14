@@ -3,6 +3,7 @@ import BudgetManage from './BudgetManage';
 import BudgetCreate from './BudgetCreate';
 import ExpensePage from './pages/ExpensePage';
 import ImportPage from './pages/ImportPages';
+import DashboardPage from './pages/DashboardPage'; // <-- Lägg till denna import
 import './App.css';
 
 function App() {
@@ -20,18 +21,12 @@ function App() {
           </nav>
         </aside>
 
-        {/* MAIN CONTENT AREA med "Parent Boxing" */}
+        {/* MAIN CONTENT AREA */}
         <main className="main-content">
           <div className="content-window">
             <Routes>
-              <Route path="/" element={
-                <div className="view-container"> {/* <- Lägg till denna wrapper */}
-                  <div className="card">
-                    <h1 style={{ marginTop: 0 }}>Välkommen!</h1>
-                    <p style={{ color: '#64748b' }}>Här kommer din ekonomiska översikt.</p>
-                  </div>
-                </div>
-              } />
+              {/* Nu renderar startsidan din DashboardPage direkt! */}
+              <Route path="/" element={<DashboardPage />} />
 
               <Route path="/expenses" element={<ExpensePage />} />
               <Route path="/budgets" element={<BudgetManage />} />

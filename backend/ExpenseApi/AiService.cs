@@ -35,6 +35,15 @@ public class AiService
             var pharmacyCategory = availableCategories.FirstOrDefault(c =>
                 c.Equals("Hälsa & Apotek", StringComparison.OrdinalIgnoreCase)) ?? "Hälsa & Apotek";
 
+            var insuranceCategory = availableCategories.FirstOrDefault(c =>
+                c.Equals("Försäkringar", StringComparison.OrdinalIgnoreCase)) ?? "Försäkringar";
+
+            var subscriptionCategory = availableCategories.FirstOrDefault(c =>
+                c.Equals("Abonnemang", StringComparison.OrdinalIgnoreCase)) ?? "Abonnemang";
+
+            var housingCategory = availableCategories.FirstOrDefault(c =>
+                c.Equals("Boende", StringComparison.OrdinalIgnoreCase)) ?? "Boende";
+
             var systembolagetCategory = availableCategories.FirstOrDefault(c =>
                 c.Equals("Systembolaget", StringComparison.OrdinalIgnoreCase)) ?? "Systembolaget";
 
@@ -44,11 +53,13 @@ public class AiService
                 prompt = $"Du är en budget-assistent. Kategorisera utgiften eller varan: '{description}'.\n" +
                          $"Du får ENDAST svara med EXAKT ett av följande kategorinamn: {categoriesString}.\n\n" +
                          $"VIKTIGA REGLER:\n" +
-                         $"- Om varan är hårvax, schampo, balsam, tvål, tandkräm, hudvård, plåster, medicin eller apoteksvaror: välj '{pharmacyCategory}'.\n" +
+                         $"- Om utgiften rör a-kassa (t.ex. Akademikernas a-kassa, Unionen, Alfa-kassan, Kommunal, IF Metall), fackföreningsavgift eller försäkring: välj '{insuranceCategory}'. Välj ALDRIG '{foodCategory}'.\n" +
+                         $"- Om utgiften är månadsavgift, hyra, bostadsrätt eller Brf-avi: välj '{housingCategory}'.\n" +
+                         $"- Om varan är hårvax, schampo, balsam, tvål, tandkräm, hudvård, medicin eller apoteksvaror: välj '{pharmacyCategory}'.\n" +
                          $"- Om utgiften är från restaurang, café, krog, snabbmat eller Foodora: välj '{restaurantCategory}'.\n" +
                          $"- Om utgiften är alkohol eller från Systembolaget: välj '{systembolagetCategory}'.\n" +
                          $"- Om varan är ätbar mat eller dryck från en matbutik: välj '{foodCategory}'.\n" +
-                         $"- Om det är rengöringsmedel, diskmedel, toapapper eller hushållsartiklar: välj 'Övrigt'.\n" +
+                         $"- Om det är diskmedel, toapapper, tvättmedel eller hushållsartiklar: välj 'Övrigt'.\n" +
                          $"Svara BARA med kategorinamnet utan citationstecken, markdown eller punkter.",
                 stream = false,
                 options = new
@@ -86,38 +97,22 @@ public class AiService
             string base64Image = Convert.ToBase64String(ms.ToArray());
 
             string prompt =
-                "Du är en expert på svenska kvitton och hyresavier (Brf, ICA, Coop m.fl.).\n" +
-                "Extrahera informationen till ren JSON med fälten: store, date, totalAmount, totalDiscount, items.\n\n" +
+                "Du är en expert på svenska kvitton, fakturor och hyresavier (Brf, A-kassa, ICA m.fl.).\n" +
+                "Extrahera informationen till ren JSON med fälten: store, date, totalAmount, totalDiscount, isFixed, isPending, items.\n\n" +
                 "GILTIGA KATEGORIER FÖR 'suggestedCategory':\n" +
                 "- 'Boende' (månadsavgift, hyra)\n" +
                 "- 'El & Värme' (el, IMD)\n" +
-                "- 'Livsmedel' (matvaror, livsmedel, snacks, läsk)\n" +
-                "- 'Hälsa & Apotek' (hårvax, schampo, tvål, tandkräm, hudvård, medicin)\n" +
-                "- 'Uteätande' (café, restaurang)\n" +
-                "- 'Systembolaget' (alkohol)\n" +
-                "- 'Övrigt' (städ, diskmedel, påsar, hushåll)\n\n" +
-                "EXEMPEL PÅ HYRESAVI:\n" +
-                "Text:\n" +
-                "'Årsavgift bostad kr/år: 52 180       4 348'\n" +
-                "'El IMD                                 256'\n" +
-                "'Moms el IMD 25%                         64'\n" +
-                "'Summa                                4 668'\n" +
-                "JSON:\n" +
-                "{\n" +
-                "  \"store\": \"Brf Månadsavi\",\n" +
-                "  \"date\": \"2026-12-01\",\n" +
-                "  \"totalAmount\": 4668.0,\n" +
-                "  \"totalDiscount\": 0.0,\n" +
-                "  \"items\": [\n" +
-                "    { \"name\": \"Årsavgift bostad\", \"price\": 4348.0, \"discount\": 0.0, \"finalPrice\": 4348.0, \"suggestedCategory\": \"Boende\" },\n" +
-                "    { \"name\": \"El IMD\", \"price\": 320.0, \"discount\": 0.0, \"finalPrice\": 320.0, \"suggestedCategory\": \"El & Värme\" }\n" +
-                "  ]\n" +
-                "}\n\n" +
-                "STRIKTA REGLER:\n" +
-                "1. Läs alltid beloppet längst ut till HÖGER på varje rad. Ignorera referenser mitt i texten (t.ex. 52 180 eller kWh).\n" +
-                "2. Slå ihop El och dess moms till en rad (256 + 64 = 320 kr).\n" +
-                "3. Sätt alltid 'suggestedCategory' på artiklarna. Hårvax/schampo/tvål ska få 'Hälsa & Apotek' även om kvittot är från en matbutik.\n" +
-                "4. Svara ENDAST med giltig JSON.";
+                "- 'Försäkringar' (A-kassa, fackavgift, hemförsäkring, personförsäkring)\n" +
+                "- 'Abonnemang' (bredband, streaming, mobil)\n" +
+                "- 'Livsmedel' (matvaror, snacks)\n" +
+                "- 'Hälsa & Apotek' (hårvax, schampo, tvål, medicin)\n" +
+                "- 'Övrigt' (hushåll, städ)\n\n" +
+                "REGLER FÖR FAKTUROR OCH AVsound:\n" +
+                "1. Om det är en avi/faktura (t.ex. Brf, Hyra, El, A-kassa): Sätt 'isFixed': true och 'isPending': true.\n" +
+                "2. Om det är en a-kassa (t.ex. Akademikernas a-kassa): Sätt 'store' till A-kassans namn och 'suggestedCategory' till 'Försäkringar'. Välj ALDRIG 'Livsmedel'.\n" +
+                "3. För Brf-avier: Slå ihop El och dess moms till en rad (256 + 64 = 320 kr).\n" +
+                "4. Läs alltid beloppet längst ut till HÖGER på varje rad.\n\n" +
+                "Svara ENDAST med giltig JSON.";
 
             var requestBody = new
             {
@@ -181,41 +176,49 @@ public class AiService
                                 })
                                 .ToList();
 
-                            // 1. Slå ihop separat moms-rad med El IMD
-var vatItem = cleanedItems.FirstOrDefault(i => i.Name.ToLower().Contains("moms"));
-var elItem = cleanedItems.FirstOrDefault(i => i.Name.ToLower().Contains("el") || i.Name.ToLower().Contains("imd"));
+                            // 1. Slå ihop eventuell separat moms-rad med El IMD
+                            var vatItem = cleanedItems.FirstOrDefault(i => i.Name.ToLower().Contains("moms"));
+                            var elItem = cleanedItems.FirstOrDefault(i => i.Name.ToLower().Contains("el") || i.Name.ToLower().Contains("imd"));
 
-if (vatItem != null && elItem != null)
-{
-    elItem.FinalPrice += vatItem.FinalPrice;
-    elItem.Price = elItem.FinalPrice;
-    cleanedItems.Remove(vatItem);
-}
+                            if (vatItem != null && elItem != null)
+                            {
+                                elItem.FinalPrice += vatItem.FinalPrice;
+                                elItem.Price = elItem.FinalPrice;
+                                cleanedItems.Remove(vatItem);
+                            }
 
-// 2. EXAKT MATEMATISK TILLSLUTNING:
-// Om vi känner till totalen och det finns en el-rad samt en boende/avgift-rad:
-if (parsed.TotalAmount > 0)
-{
-    var rentItem = cleanedItems.FirstOrDefault(i => 
-        i.Name.Contains("avgift", StringComparison.OrdinalIgnoreCase) || 
-        i.Name.Contains("hyra", StringComparison.OrdinalIgnoreCase) || 
-        i.Name.Contains("bostad", StringComparison.OrdinalIgnoreCase));
+                            // 2. EXAKT MATEMATISK TILLSLUTNING FÖR AVIER
+                            if (parsed.TotalAmount > 0)
+                            {
+                                var rentItem = cleanedItems.FirstOrDefault(i => 
+                                    i.Name.Contains("avgift", StringComparison.OrdinalIgnoreCase) || 
+                                    i.Name.Contains("hyra", StringComparison.OrdinalIgnoreCase) || 
+                                    i.Name.Contains("bostad", StringComparison.OrdinalIgnoreCase));
 
-    var currentElItem = cleanedItems.FirstOrDefault(i => 
-        i.Name.Contains("el", StringComparison.OrdinalIgnoreCase) || 
-        i.Name.Contains("imd", StringComparison.OrdinalIgnoreCase));
+                                var currentElItem = cleanedItems.FirstOrDefault(i => 
+                                    i.Name.Contains("el", StringComparison.OrdinalIgnoreCase) || 
+                                    i.Name.Contains("imd", StringComparison.OrdinalIgnoreCase));
 
-    if (rentItem != null && currentElItem != null)
-    {
-        // Om hyran stämmer (4 348 kr), tvinga elen till det exakta restvärdet: 4 668 - 4 348 = 320 kr
-        currentElItem.FinalPrice = parsed.TotalAmount - rentItem.FinalPrice;
-        currentElItem.Price = currentElItem.FinalPrice;
-    }
-}
+                                if (rentItem != null && currentElItem != null)
+                                {
+                                    // Tvinga elen till det exakta restvärdet: 4 668 - 4 348 = 320 kr
+                                    currentElItem.FinalPrice = parsed.TotalAmount - rentItem.FinalPrice;
+                                    currentElItem.Price = currentElItem.FinalPrice;
+                                }
+                            }
+                        }
+
+                        // Automatisk flaggning om avsändaren är en a-kassa eller förening
+                        bool isFixedDetected = parsed.IsFixed || 
+                            cleanStore.Contains("a-kassa", StringComparison.OrdinalIgnoreCase) ||
+                            cleanStore.Contains("brf", StringComparison.OrdinalIgnoreCase) ||
+                            cleanStore.Contains("avi", StringComparison.OrdinalIgnoreCase);
 
                         return parsed with 
                         { 
                             Store = cleanStore,
+                            IsFixed = isFixedDetected,
+                            IsPending = parsed.IsPending || isFixedDetected,
                             Items = cleanedItems
                         };
                     }
@@ -286,6 +289,8 @@ public record ParsedReceipt(
     string? Date,
     decimal TotalAmount,
     decimal TotalDiscount,
+    bool IsFixed,
+    bool IsPending,
     List<ReceiptLineItem>? Items
 );
 

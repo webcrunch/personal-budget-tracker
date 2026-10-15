@@ -3,7 +3,7 @@ import BudgetManage from './BudgetManage';
 import BudgetCreate from './BudgetCreate';
 import ExpensePage from './pages/ExpensePage';
 import ImportPage from './pages/ImportPages';
-import DashboardPage from './pages/DashboardPage'; // <-- Lägg till denna import
+import DashboardPage from './pages/DashboardPage'; 
 import './App.css';
 
 function App() {

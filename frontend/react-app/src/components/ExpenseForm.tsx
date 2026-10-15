@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { api } from '../utils/api';
-import { Category, ExpenseItem } from '../types';
+import type { Category, ExpenseItem } from '../types';
 
 interface ExpenseFormProps {
   categories: Category[];

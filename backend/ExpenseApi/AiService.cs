@@ -182,43 +182,36 @@ public class AiService
                                 .ToList();
 
                             // 1. Slå ihop separat moms-rad med El IMD
-                            var vatItem = cleanedItems.FirstOrDefault(i => i.Name.ToLower().Contains("moms"));
-                            var elItem = cleanedItems.FirstOrDefault(i => i.Name.ToLower().Contains("el") || i.Name.ToLower().Contains("imd"));
+var vatItem = cleanedItems.FirstOrDefault(i => i.Name.ToLower().Contains("moms"));
+var elItem = cleanedItems.FirstOrDefault(i => i.Name.ToLower().Contains("el") || i.Name.ToLower().Contains("imd"));
 
-                            if (vatItem != null && elItem != null)
-                            {
-                                elItem.FinalPrice += vatItem.FinalPrice;
-                                elItem.Price = elItem.FinalPrice;
-                                cleanedItems.Remove(vatItem);
-                            }
+if (vatItem != null && elItem != null)
+{
+    elItem.FinalPrice += vatItem.FinalPrice;
+    elItem.Price = elItem.FinalPrice;
+    cleanedItems.Remove(vatItem);
+}
 
-                            // 2. EXAKT MATEMATISK KORRIGERING FÖR TVÅRADERS-AVIER:
-                            if (parsed.TotalAmount > 0 && cleanedItems.Count == 2)
-                            {
-                                var rent = cleanedItems.FirstOrDefault(i => 
-                                    i.Name.ToLower().Contains("avgift") || 
-                                    i.Name.ToLower().Contains("hyra") || 
-                                    i.Name.ToLower().Contains("bostad"));
-                                var variable = cleanedItems.FirstOrDefault(i => i != rent);
+// 2. EXAKT MATEMATISK TILLSLUTNING:
+// Om vi känner till totalen och det finns en el-rad samt en boende/avgift-rad:
+if (parsed.TotalAmount > 0)
+{
+    var rentItem = cleanedItems.FirstOrDefault(i => 
+        i.Name.Contains("avgift", StringComparison.OrdinalIgnoreCase) || 
+        i.Name.Contains("hyra", StringComparison.OrdinalIgnoreCase) || 
+        i.Name.Contains("bostad", StringComparison.OrdinalIgnoreCase));
 
-                                if (rent != null && variable != null && rent.FinalPrice <= parsed.TotalAmount)
-                                {
-                                    variable.FinalPrice = parsed.TotalAmount - rent.FinalPrice;
-                                    variable.Price = variable.FinalPrice;
-                                }
-                            }
-                            else if (parsed.TotalAmount > 0 && cleanedItems.Any())
-                            {
-                                foreach (var item in cleanedItems)
-                                {
-                                    if (item.FinalPrice > parsed.TotalAmount)
-                                    {
-                                        item.FinalPrice = Math.Round(item.FinalPrice / 12m, 2);
-                                        item.Price = item.FinalPrice;
-                                    }
-                                }
-                            }
-                        }
+    var currentElItem = cleanedItems.FirstOrDefault(i => 
+        i.Name.Contains("el", StringComparison.OrdinalIgnoreCase) || 
+        i.Name.Contains("imd", StringComparison.OrdinalIgnoreCase));
+
+    if (rentItem != null && currentElItem != null)
+    {
+        // Om hyran stämmer (4 348 kr), tvinga elen till det exakta restvärdet: 4 668 - 4 348 = 320 kr
+        currentElItem.FinalPrice = parsed.TotalAmount - rentItem.FinalPrice;
+        currentElItem.Price = currentElItem.FinalPrice;
+    }
+}
 
                         return parsed with 
                         { 

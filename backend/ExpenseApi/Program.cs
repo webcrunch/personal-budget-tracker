@@ -134,6 +134,10 @@ app.MapPost("/api/receipts/upload", async (IFormFile file, AiService aiService) 
     if (file == null || file.Length == 0)
         return Results.BadRequest(new { error = "Ingen fil mottagen." });
 
+    // Bara bilder: allt annat skulle ändå bara ta tid i vision-modellen.
+    if (string.IsNullOrEmpty(file.ContentType) || !file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        return Results.BadRequest(new { error = "Filen måste vara en bild." });
+
     using var stream = file.OpenReadStream();
     var result = await aiService.AnalyzeReceiptImageAsync(stream);
 
@@ -141,7 +145,9 @@ app.MapPost("/api/receipts/upload", async (IFormFile file, AiService aiService) 
         return Results.Problem("Kunde inte analysera kvittot från bilden.");
 
     return Results.Ok(result);
-}).DisableAntiforgery();
+})
+.DisableAntiforgery()
+.WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(10 * 1024 * 1024)); // max 10 MB per kvittobild
 
 app.MapControllers();
 

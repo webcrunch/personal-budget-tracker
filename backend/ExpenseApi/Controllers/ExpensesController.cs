@@ -23,41 +23,15 @@ public class ExpensesController : ControllerBase
     {
         _context = context;
         _aiService = aiService;
-
-        if (!_context.Categories.Any())
-        {
-            _context.Categories.AddRange(
-                new Category { Name = "Boende", IsFixed = true },
-                new Category { Name = "El & Värme", IsFixed = true },
-                new Category { Name = "Försäkringar", IsFixed = true },
-                new Category { Name = "Abonnemang", IsFixed = true },
-                new Category { Name = "Lån & Räntor", IsFixed = true },
-                new Category { Name = "Livsmedel", IsFixed = false },
-                new Category { Name = "Uteätande", IsFixed = false },
-                new Category { Name = "Boende" },
-                new Category { Name = "El & Värme" },
-                new Category { Name = "Försäkringar" },
-                new Category { Name = "Abonnemang" },
-                new Category { Name = "Transport" },
-                new Category { Name = "Drivmedel" },
-                new Category { Name = "Bilunderhåll" },
-                new Category { Name = "Livsmedel" },
-                new Category { Name = "Uteätande" },
-                new Category { Name = "Systembolaget" },
-                new Category { Name = "Kläder & Skor" },
-                new Category { Name = "Elektronik" },
-                new Category { Name = "Nöje" },
-                new Category { Name = "Husdjur" },
-                new Category { Name = "Hobby" },
-                new Category { Name = "Hälsa & Apotek" },
-                new Category { Name = "Träning" },
-                new Category { Name = "Sparande" },
-                new Category { Name = "Lån & Räntor" },
-                new Category { Name = "Övrigt" }
-            );
-            _context.SaveChanges();
-        }
     }
+
+    // Samma dag, samma belopp och samma beskrivning (utan skillnad i versaler och mellanslag) = samma köp.
+    // Tidigare räckte ett gemensamt ord på över 3 tecken, vilket slängde riktiga köp.
+    private static string NormalizeDescription(string? description) =>
+        string.Join(" ", (description ?? "").ToLowerInvariant().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    private static (DateTime Day, decimal Amount, string Description) DuplicateKey(DateTimeOffset date, decimal amount, string? description) =>
+        (date.Date, amount, NormalizeDescription(description));
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Expense>>> GetExpenses()
@@ -193,25 +167,17 @@ public class ExpensesController : ControllerBase
         var minDate = expense.Date.AddDays(-1);
         var maxDate = expense.Date.AddDays(1);
 
-        var descWords = expense.Description
-            .ToLower()
-            .Split(new[] { ' ', '-', ',', '.', '*' }, StringSplitOptions.RemoveEmptyEntries)
-            .Where(w => w.Length > 3)
-            .ToList();
-
-        var existingDuplicate = await _context.Expenses
+        var key = DuplicateKey(expense.Date, expense.Amount, expense.Description);
+        var candidates = await _context.Expenses
             .Where(e => e.Date >= minDate && e.Date <= maxDate && e.Amount == expense.Amount)
-            .FirstOrDefaultAsync(e => 
-                e.Description.ToLower().Trim() == expense.Description.ToLower().Trim() ||
-                e.Description.ToLower().Contains(expense.Description.ToLower().Trim()) ||
-                expense.Description.ToLower().Contains(e.Description.ToLower().Trim()) ||
-                descWords.Any(w => e.Description.ToLower().Contains(w)));
+            .ToListAsync();
+        var existingDuplicate = candidates.FirstOrDefault(e => DuplicateKey(e.Date, e.Amount, e.Description) == key);
 
         if (existingDuplicate != null)
         {
             return Conflict(new 
             { 
-                message = $"En utgift med beloppet {expense.Amount:0.00} kr och snarlik beskrivning ('{existingDuplicate.Description}') finns redan registrerad den {existingDuplicate.Date:yyyy-MM-dd}." 
+                message = $"En utgift med beloppet {expense.Amount:0.00} kr och samma beskrivning ('{existingDuplicate.Description}') finns redan registrerad den {existingDuplicate.Date:yyyy-MM-dd}." 
             });
         }
 
@@ -261,6 +227,7 @@ public class ExpensesController : ControllerBase
     }
 
     [HttpPost("import-csv")]
+    [RequestSizeLimit(2 * 1024 * 1024)] // 2 MB räcker gott för en bankexport
     public async Task<ActionResult<object>> ImportCsv(IFormFile file)
     {
         if (file == null || file.Length == 0)
@@ -335,31 +302,18 @@ public class ExpensesController : ControllerBase
         var newExpenses = new List<Expense>();
         int duplicatesSkipped = 0;
 
-        // 3. Filtrera bort dubbletter mot befintlig data och mot CSV-filen internt
+        // 3. Filtrera bort dubbletter mot befintlig data. Räknas per nyckel: två likadana kaffe samma dag
+        // är två köp, och en fil som importeras igen ska bara hoppa över så många som redan finns.
+        var alreadyInDb = existingExpenses
+            .GroupBy(e => DuplicateKey(e.Date, e.Amount, e.Description))
+            .ToDictionary(g => g.Key, g => g.Count());
+
         foreach (var row in parsedRows)
         {
-            var rowWords = row.Description
-                .ToLower()
-                .Split(new[] { ' ', '-', ',', '.', '*' }, StringSplitOptions.RemoveEmptyEntries)
-                .Where(w => w.Length > 3)
-                .ToList();
-
-            bool existsInDb = existingExpenses.Any(e => 
-                e.Date.Date == row.Date.Date && 
-                e.Amount == row.Amount &&
-                (
-                    e.Description.Equals(row.Description, StringComparison.OrdinalIgnoreCase) ||
-                    e.Description.ToLower().Contains(row.Description.ToLower()) ||
-                    row.Description.ToLower().Contains(e.Description.ToLower()) ||
-                    rowWords.Any(w => e.Description.ToLower().Contains(w))
-                ));
-
-            bool existsInBatch = newExpenses.Any(e => 
-                e.Date.Date == row.Date.Date && 
-                e.Amount == row.Amount);
-
-            if (existsInDb || existsInBatch)
+            var key = DuplicateKey(row.Date, row.Amount, row.Description);
+            if (alreadyInDb.TryGetValue(key, out var remaining) && remaining > 0)
             {
+                alreadyInDb[key] = remaining - 1;
                 duplicatesSkipped++;
                 continue;
             }

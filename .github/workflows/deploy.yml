@@ -7,6 +7,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Flera merges i rad: ett nytt bygge avbryter det som pågår, så bara den senaste committen byggs.
+    concurrency:
+      group: budget-build
+      cancel-in-progress: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -58,6 +62,10 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    # En deploy i taget; avbryts aldrig mitt i, så två "compose up" inte krockar.
+    concurrency:
+      group: budget-deploy
+      cancel-in-progress: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

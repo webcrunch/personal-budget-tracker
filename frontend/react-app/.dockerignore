@@ -1,0 +1,11 @@
+# Hemligheter och lokala miljöfiler ska aldrig in i en image-layer.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Installeras och byggs i imagen.
+node_modules/
+dist/
+.git

@@ -1,11 +1,11 @@
 # Steg 1: Byggstadiet
-FROM node:24-alpine as build
+FROM node:24-alpine AS build
 
 WORKDIR /app
 
 # Kopiera beroenden och installera
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
 # Kopiera resten av källkoden
 COPY . .
@@ -14,9 +14,8 @@ COPY . .
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 
-# KÖR BYGGET: Vi använder 'npx vite build' för att gå runt 
-# TypeScript-referensfelen (tsconfig.node.json-felet)
-RUN npx vite build
+# KÖR BYGGET: typkontroll (tsc) och sedan vite. Samma kommando som i CI.
+RUN npm run build
 
 # Steg 2: Produktionsstadiet med Nginx
 FROM nginx:stable-alpine
@@ -25,15 +24,8 @@ FROM nginx:stable-alpine
 # Vite bygger till mappen 'dist'
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Lägg till en enkel Nginx-konfiguration för att hantera React Router-rutter
-RUN echo 'server { \
-    listen 80; \
-    location / { \
-        root /usr/share/nginx/html; \
-        index index.html; \
-        try_files $uri $uri/ /index.html; \
-    } \
-}' > /etc/nginx/conf.d/default.conf
+# Nginx-konfigurationen för React Router-rutter ligger i nginx.conf
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 

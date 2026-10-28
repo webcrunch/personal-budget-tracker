@@ -20,5 +20,8 @@ COPY --from=build /app/publish ./
 COPY ExpenseApi/entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
+# Kör inte som root: aspnet-imagen har redan användaren "app".
+USER app
+
 # Använd entrypoint-skriptet för att starta containern
 ENTRYPOINT ["./entrypoint.sh"]

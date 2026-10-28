@@ -2,10 +2,40 @@ name: Budget Tracker Build and Deploy
 
 on:
   push:
-    branches: ["main"] # Triggas nu bara vid push till main
+    branches: ["main"] # Bygg och deploy bara vid push till main
+  pull_request:
+    branches: ["main"] # PR:er kör bara testjobbet
 
 jobs:
+  # Bygger backend och frontend utan att publicera något. Deploy sker bara om detta går igenom.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build backend
+        run: dotnet build backend/ExpenseApi/ExpenseApi.csproj -c Release
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/react-app/package-lock.json
+
+      - name: Build frontend (typecheck + vite)
+        working-directory: frontend/react-app
+        run: |
+          npm ci
+          npm run build
+
   build:
+    needs: test
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -78,10 +108,11 @@ jobs:
             kv/data/server-deploy DOCKER_PASSWORD | DOCKER_PASSWORD ;
             kv/data/budget-tracker db_pass | DB_PASS ;
             kv/data/budget-tracker db_user | DB_USER ;
-            kv/data/budget-tracker db_name | DB_NAME
+            kv/data/budget-tracker db_name | DB_NAME ;
+            kv/data/budget-tracker basic_auth | BASIC_AUTH
 
       - name: Copy docker-compose files to VPS
-        uses: appleboy/scp-action@master
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ env.SERVER_HOST }}
           username: ${{ env.SERVER_USER }}
@@ -91,13 +122,13 @@ jobs:
           target: "/home/repos/budget-tracker"
 
       - name: Execute Deploy Commands
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ env.SERVER_HOST }}
           username: ${{ env.SERVER_USER }}
           key: ${{ env.SERVER_PRIVATE_KEY }}
           port: ${{ env.SERVER_PORT }}
-          envs: DOCKER_USERNAME,DOCKER_PASSWORD,DB_USER,DB_PASS,DB_NAME
+          envs: DOCKER_USERNAME,DOCKER_PASSWORD,DB_USER,DB_PASS,DB_NAME,BASIC_AUTH
           script: |
             mkdir -p /home/repos/budget-tracker
             cd /home/repos/budget-tracker
@@ -112,6 +143,8 @@ jobs:
             echo "POSTGRES_DB=${DB_NAME}" >> .env
             echo "POSTGRES_USER=${DB_USER}" >> .env
             echo "POSTGRES_PASSWORD=${DB_PASS}" >> .env
+            # Enkla citattecken: en bcrypt-hash innehåller $, som compose annars tolkar som variabler.
+            printf "BUDGET_BASIC_AUTH='%s'\n" "${BASIC_AUTH}" >> .env
 
             echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
 

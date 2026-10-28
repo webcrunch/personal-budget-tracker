@@ -12,6 +12,7 @@ services:
       - "traefik.http.routers.budget-api.entrypoints=websecure"
       - "traefik.http.routers.budget-api.tls.certresolver=myresolver"
       - "traefik.http.routers.budget-api.priority=20"
+      - "traefik.http.routers.budget-api.middlewares=budget-auth"
 
       # 2. Router för enbart POST-anrop (Här sätter vi Rate Limit)
       # Priority=25 gör att Traefik kollar denna först vid POST-anrop
@@ -19,7 +20,7 @@ services:
       - "traefik.http.routers.budget-api-post.entrypoints=websecure"
       - "traefik.http.routers.budget-api-post.tls.certresolver=myresolver"
       - "traefik.http.routers.budget-api-post.priority=25"
-      - "traefik.http.routers.budget-api-post.middlewares=api-post-limit"
+      - "traefik.http.routers.budget-api-post.middlewares=budget-auth,api-post-limit"
 
       # Koppla samman båda routrarna till samma interna Traefik-service
       - "traefik.http.routers.budget-api.service=budget-api-service"
@@ -30,6 +31,11 @@ services:
       - "traefik.http.middlewares.api-post-limit.ratelimit.average=5"
       - "traefik.http.middlewares.api-post-limit.ratelimit.burst=10"
       - "traefik.http.middlewares.api-post-limit.ratelimit.period=1s"
+
+      # 3b. Inloggning framför hela appen (UI och API). Användare:bcrypt-hash från Vault,
+      # skapad med: htpasswd -nbB <user> <lösenord>. Saknas värdet stoppar compose deployen.
+      - "traefik.http.middlewares.budget-auth.basicauth.users=${BUDGET_BASIC_AUTH:?Sätt BUDGET_BASIC_AUTH (htpasswd -nbB) i .env}"
+      - "traefik.http.middlewares.budget-auth.basicauth.realm=Budget Tracker"
 
       # 4. Koppling till API-containerns interna port
       - "traefik.http.services.budget-api-service.loadbalancer.server.port=8080"
@@ -45,6 +51,7 @@ services:
       - "traefik.http.routers.budget-ui.entrypoints=websecure"
       - "traefik.http.routers.budget-ui.tls.certresolver=myresolver"
       - "traefik.http.routers.budget-ui.priority=10"
+      - "traefik.http.routers.budget-ui.middlewares=budget-auth"
       - "traefik.http.services.budget-ui.loadbalancer.server.port=80"
 
 networks:

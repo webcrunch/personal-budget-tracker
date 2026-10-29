@@ -78,31 +78,40 @@ jobs:
             kv/data/server-deploy DOCKER_PASSWORD | DOCKER_PASSWORD ;
             kv/data/budget-tracker db_pass | DB_PASS ;
             kv/data/budget-tracker db_user | DB_USER ;
-            kv/data/budget-tracker db_name | DB_NAME
+            kv/data/budget-tracker db_name | DB_NAME ;
+            kv/data/server-deploy SSH_HOST_FINGERPRINT | SSH_HOST_FINGERPRINT
 
+      # De två appleboy-stegen får SSH-nyckeln: låsta till en commit, och serverns identitet
+      # kontrolleras mot fingeravtrycket i Vault.
       - name: Copy docker-compose files to VPS
-        uses: appleboy/scp-action@master
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
         with:
           host: ${{ env.SERVER_HOST }}
           username: ${{ env.SERVER_USER }}
           key: ${{ env.SERVER_PRIVATE_KEY }}
           port: ${{ env.SERVER_PORT }}
+          fingerprint: ${{ env.SSH_HOST_FINGERPRINT }}
           source: "docker-compose.yml,docker-compose.prod.yml"
           target: "/home/repos/budget-tracker"
 
       - name: Execute Deploy Commands
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         with:
           host: ${{ env.SERVER_HOST }}
           username: ${{ env.SERVER_USER }}
           key: ${{ env.SERVER_PRIVATE_KEY }}
           port: ${{ env.SERVER_PORT }}
+          fingerprint: ${{ env.SSH_HOST_FINGERPRINT }}
           envs: DOCKER_USERNAME,DOCKER_PASSWORD,DB_USER,DB_PASS,DB_NAME
           script: |
+            # Avbryt vid första fel, i stället för att fortsätta och starta om med halva ändringen.
+            set -e
             mkdir -p /home/repos/budget-tracker
             cd /home/repos/budget-tracker
 
-            # Generera .env fil specifikt för Budget Tracker
+            # Generera .env fil specifikt för Budget Tracker. umask 077: filen med databaslösenordet
+            # blir läsbar bara för ägaren (tidigare 644, läsbar för alla på servern).
+            umask 077
             echo "ASPNETCORE_ENVIRONMENT=Production" > .env
             echo "DOCKER_USERNAME=${DOCKER_USERNAME}" >> .env
             echo "CONNECTION_STRING=Host=db;Port=5432;Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASS}" >> .env
@@ -113,8 +122,26 @@ jobs:
             echo "POSTGRES_USER=${DB_USER}" >> .env
             echo "POSTGRES_PASSWORD=${DB_PASS}" >> .env
 
-            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+            chmod 600 .env
 
+            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
             docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate --remove-orphans
+            # Inloggningen behövs bara för pull; annars ligger Docker Hub-lösenordet kvar på servern.
+            docker logout
+
+            # Utan --force-recreate: bara containrar med en ny image eller ändrad konfiguration startas
+            # om, inte databasen vid varje deploy.
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
             docker image prune -f
+
+      # Under 500 räknas som att appen svarar: med Basic Auth framför (PR #1) är svaret 401.
+      # Nere betyder 502/503 från Traefik eller inget svar alls.
+      - name: Check that the app answers
+        run: |
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' https://budgettracker.jarllindquist.com/ || true)
+            if [ "$code" != "000" ] && [ "$code" -lt 500 ]; then echo "budgettracker svarar ($code)"; exit 0; fi
+            sleep 3
+          done
+          echo "budgettracker.jarllindquist.com svarade inte efter deployen"
+          exit 1

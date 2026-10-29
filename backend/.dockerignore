@@ -1,0 +1,16 @@
+# Hemligheter och lokala miljöfiler ska aldrig in i en image-layer.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Byggresultat och editor-filer; bygget gör en egen restore och publish.
+bin/
+obj/
+**/bin/
+**/obj/
+.vs/
+.vscode/
+*.user
+.git

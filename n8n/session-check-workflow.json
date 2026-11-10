@@ -1,0 +1,114 @@
+{
+  "name": "[auth] session check (budget app and other backends)",
+  "nodes": [
+    {
+      "id": "a5e00000-0000-4000-8000-000000000001",
+      "name": "Webhook - session check",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "a5e00000-0000-4000-8000-0000000000aa",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "session-check",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "a5e00000-0000-4000-8000-000000000002",
+      "name": "Check and renew session",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "6W6j6INQa2RE2rIH",
+          "name": "Postgres account"
+        }
+      },
+      "alwaysOutputData": true,
+      "notesInFlow": true,
+      "notes": "Valid session? Renews it for 15 minutes. Empty result = not logged in.",
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE admin_tokens\nSET expires_at = NOW() + INTERVAL '15 minutes'\nWHERE token = $1\n  AND status = 'session'\n  AND expires_at > NOW()\nRETURNING token;",
+        "options": {
+          "queryReplacement": "={{ [String($json.headers['x-admin-session'] || '')] }}"
+        }
+      }
+    },
+    {
+      "id": "a5e00000-0000-4000-8000-000000000003",
+      "name": "Valid?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Only whether the session is valid; never the token itself\nreturn [{ json: { valid: Boolean($input.first()?.json?.token) } }];"
+      }
+    },
+    {
+      "id": "a5e00000-0000-4000-8000-000000000004",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook - session check": {
+      "main": [
+        [
+          {
+            "node": "Check and renew session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check and renew session": {
+      "main": [
+        [
+          {
+            "node": "Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid?": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

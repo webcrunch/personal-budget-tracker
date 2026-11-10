@@ -1,3 +1,5 @@
+import { authHeaders, sessionExpired, touchSession } from './auth';
+
 // Vi hämtar URL från miljövariabler eller fallback till localhost:8080 där din API bor
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
 
@@ -14,9 +16,17 @@ export const api = {
             headers: {
                 // Vi skickar endast JSON-header om vi inte skickar FormData (vid filuppladdning)
                 ...(options?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+                // Sessionen från inloggningen (utils/auth.ts); backend svarar 401 utan den
+                ...authHeaders(),
                 ...options?.headers,
             },
         });
+
+        if (response.status === 401) {
+            sessionExpired();
+            throw new Error('Inte inloggad');
+        }
+        touchSession();
 
         if (!response.ok) {
             const errorText = await response.text();

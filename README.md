@@ -34,5 +34,30 @@ Se till att du har [Docker Desktop](https://www.docker.com/products/docker-deskt
 
 ### 2. Klona repot
 ```bash
-git clone [https://github.com/dittanvandarnamn/personal-budget-tracker.git](https://github.com/dittanvandarnamn/personal-budget-tracker.git)
+git clone https://github.com/webcrunch/personal-budget-tracker.git
 cd personal-budget-tracker
+```
+
+### 3. Lösenord i `.env`
+Inga lösenord finns i koden. Kopiera `.env.example` till `.env` och fyll i `POSTGRES_PASSWORD` (och samma lösenord i `CONNECTION_STRING`). Compose startar inte utan dem. Vill du slippa inloggningen lokalt, avkommentera `DISABLE_AUTH=true` (gäller bara i Development).
+
+### 4. Starta
+```bash
+docker network create ai-bridge   # en gång; nätverket mot Ollama
+docker compose up -d --build
+```
+Frontend: http://localhost:3002, API: http://localhost:8080. Portarna är bundna till `127.0.0.1`, så de syns bara på din egen dator.
+
+pgAdmin finns bara lokalt, i `docker-compose.dev.yml` (sätt `PGADMIN_PASSWORD` i `.env`):
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+```
+Sedan http://localhost:5050.
+
+## 🛡️ Säkerhet i drift
+- Alla `/api`-anrop kräver inloggning (se ovan).
+- Frontendens nginx skickar en Content-Security-Policy: bara egna skript, och anrop bara till API:t och n8n-webhookarna för inloggningen. Det skyddar sessionen i localStorage mot injicerade skript.
+- Databasen, API:t och frontend publicerar inga portar utåt, eftersom de är bundna till `127.0.0.1`. Docker-portar går annars förbi ufw. Trafiken utifrån går via Traefik.
+- API-containern kör som en vanlig användare, inte som root.
+- Lösenorden kommer från Vault (`kv/budget-tracker`), som deployen skriver till `.env` på servern.
+- Pull requests byggs och kontrolleras i CI, och bara main deployas.

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { authHeaders, sessionExpired } from './utils/auth';
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL || 'http://localhost:5015/api';
 
@@ -15,8 +16,11 @@ export default function BudgetCreate() {
     });
 
     useEffect(() => {
-        fetch(`${API_BASE_URL}/categories`)
-            .then(res => res.json())
+        fetch(`${API_BASE_URL}/categories`, { headers: authHeaders() })
+            .then(res => {
+                if (res.status === 401) sessionExpired();
+                return res.json();
+            })
             .then(data => setCategories(data));
     }, []);
 
@@ -24,7 +28,7 @@ export default function BudgetCreate() {
         e.preventDefault();
         const response = await fetch(`${API_BASE_URL}/Budgets`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
             body: JSON.stringify({
                 ...formData,
                 categoryId: formData.categoryId === '' ? null : Number(formData.categoryId),
@@ -32,6 +36,7 @@ export default function BudgetCreate() {
             })
         });
 
+        if (response.status === 401) return sessionExpired();
         if (response.ok) navigate('/budgets');
     };
 

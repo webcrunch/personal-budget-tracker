@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { authHeaders, sessionExpired } from '../utils/auth';
 
 interface ReceiptLineItem {
     name: string;
@@ -55,9 +56,14 @@ export const ReceiptUpload: React.FC<ReceiptUploadProps> = ({ onReceiptConfirmed
             // Anropar POST /api/receipts/upload
             const response = await fetch(`${apiUrl}/receipts/upload`, {
                 method: 'POST',
+                headers: authHeaders(),
                 body: formData,
             });
 
+            if (response.status === 401) {
+                sessionExpired();
+                return;
+            }
             if (!response.ok) {
                 throw new Error(`Serverfel: ${response.status} ${response.statusText}`);
             }

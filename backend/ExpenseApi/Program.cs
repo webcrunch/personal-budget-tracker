@@ -26,6 +26,10 @@ builder.Services.AddSwaggerGen();
 // --- Registrera Health Checks i DI-containern ---
 builder.Services.AddHealthChecks();
 
+// --- Inloggning: sessionen kontrolleras mot n8n (SessionAuthMiddleware) ---
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient("session-check", client => client.Timeout = TimeSpan.FromSeconds(10));
+
 // --- Registrera AiService med Timeout på 3 minuter ---
 builder.Services.AddHttpClient<AiService>(client =>
 {
@@ -122,6 +126,9 @@ app.UseRouting();
 
 // Aktivera CORS
 app.UseCors("AllowFrontend");
+
+// Alla /api-anrop kräver en giltig session; /health gör det inte
+app.UseMiddleware<SessionAuthMiddleware>();
 
 app.UseAuthorization();
 

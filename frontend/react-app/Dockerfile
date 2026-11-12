@@ -1,11 +1,11 @@
 # Steg 1: Byggstadiet
-FROM node:24-alpine as build
+FROM node:24-alpine AS build
 
 WORKDIR /app
 
-# Kopiera beroenden och installera
+# Kopiera beroenden och installera exakt det som står i package-lock.json
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
 # Kopiera resten av källkoden
 COPY . .
@@ -25,15 +25,8 @@ FROM nginx:stable-alpine
 # Vite bygger till mappen 'dist'
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Lägg till en enkel Nginx-konfiguration för att hantera React Router-rutter
-RUN echo 'server { \
-    listen 80; \
-    location / { \
-        root /usr/share/nginx/html; \
-        index index.html; \
-        try_files $uri $uri/ /index.html; \
-    } \
-}' > /etc/nginx/conf.d/default.conf
+# Nginx-konfigurationen i repot: React Router-rutter och säkerhetsheaders (CSP med mera)
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 

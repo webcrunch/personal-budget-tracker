@@ -2,10 +2,46 @@ name: Budget Tracker Build and Deploy
 
 on:
   push:
-    branches: ["main"] # Triggas nu bara vid push till main
+    branches: ["main"]
+  # Pull requests kör bara test-jobbet: bygger backend, frontend och kontrollerar compose-filerna
+  pull_request:
+    branches: ["main"]
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build the API
+        run: dotnet build backend/ExpenseApi/ExpenseApi.csproj -c Release
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/react-app/package-lock.json
+
+      - name: Build the frontend (tsc + vite)
+        working-directory: frontend/react-app
+        run: |
+          npm ci
+          npm run build
+
+      # Samma kombination som deployen; .env-värdena är påhittade, bara för att compose ska tolka filerna
+      - name: Check the compose files
+        run: |
+          printf 'CONNECTION_STRING=x\nPOSTGRES_PASSWORD=x\n' > .env
+          docker network create ai-bridge
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
+
   build:
+    needs: test
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     # Flera merges i rad: ett nytt bygge avbryter det som pågår, så bara den senaste committen byggs.
     concurrency:
@@ -142,7 +178,7 @@ jobs:
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
             docker image prune -f
 
-      # Under 500 räknas som att appen svarar: med Basic Auth framför (PR #1) är svaret 401.
+      # Under 500 räknas som att appen svarar (startsidan är inloggningen och svarar 200).
       # Nere betyder 502/503 från Traefik eller inget svar alls.
       - name: Check that the app answers
         run: |

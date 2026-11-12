@@ -41,9 +41,11 @@ builder.Services.AddHttpClient<AiService>(client =>
     client.Timeout = TimeSpan.FromMinutes(3);
 });
 
-// Hämta anslutningssträngen
+// Hämta anslutningssträngen. Inget lösenord i koden: utan CONNECTION_STRING (eller
+// ConnectionStrings:DefaultConnection, t.ex. i user secrets) startar API:t inte.
 var connectionString = builder.Configuration.GetValue<string>("CONNECTION_STRING")
-                    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+                    ?? builder.Configuration.GetConnectionString("DefaultConnection")
+                    ?? throw new InvalidOperationException("CONNECTION_STRING saknas (se .env.example)");
 
 // Lägg till DbContext med PostgreSQL
 builder.Services.AddDbContext<ExpenseContext>(options =>

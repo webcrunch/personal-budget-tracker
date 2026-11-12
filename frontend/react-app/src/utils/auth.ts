@@ -34,9 +34,18 @@ export const sessionExpired = () => {
     window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
 };
 
-// Skickar länken till Telegram; svarar med ett sessionId att fråga om
+// Systemets namn i n8n: står i Telegram-meddelandet, och sessionen gäller bara här
+const APP = 'budget';
+
+// Skickar länken till Telegram; svarar med ett sessionId att fråga om. n8n svarar 429 om en
+// länk redan skickades den senaste minuten.
 export async function requestMagicLink(): Promise<string> {
-    const res = await fetch(`${N8N}/request-magic-link`, { method: 'POST' });
+    const res = await fetch(`${N8N}/request-magic-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ app: APP }),
+    });
+    if (!res.ok) throw new Error(`request-magic-link ${res.status}`);
     const data = await res.json();
     if (!data?.sessionId) throw new Error('no sessionId');
     return data.sessionId;

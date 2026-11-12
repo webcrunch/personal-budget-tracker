@@ -8,7 +8,8 @@ namespace ExpenseApi.Services;
 
 // Alla anrop under /api kräver inloggning: samma magiska länk via Telegram som admin på
 // jarllindquist.com. Frontend skickar sessionen som X-Admin-Session, och n8n-webhooken
-// session-check svarar om den är giltig (och förnyar den i 15 minuter). Svaret sparas en minut,
+// session-check svarar om den är giltig för just det här systemet (app "budget", så att en
+// session från cv-admin inte gäller här) och förnyar den i 15 minuter. Svaret sparas en minut,
 // så att n8n inte får ett anrop per klick. Går n8n inte att nå nekas anropet (fail closed).
 public class SessionAuthMiddleware
 {
@@ -17,6 +18,7 @@ public class SessionAuthMiddleware
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<SessionAuthMiddleware> _logger;
     private readonly string _checkUrl;
+    private readonly string _app;
     private readonly bool _disabled;
 
     public SessionAuthMiddleware(RequestDelegate next, IMemoryCache cache, IHttpClientFactory httpClientFactory,
@@ -27,6 +29,7 @@ public class SessionAuthMiddleware
         _httpClientFactory = httpClientFactory;
         _logger = logger;
         _checkUrl = configuration["SESSION_CHECK_URL"] ?? "https://jarllindquist.com/n8n/webhook/session-check";
+        _app = configuration["SESSION_APP"] ?? "budget";
         // Bara lokalt: DISABLE_AUTH=true stänger av kontrollen, aldrig i produktion
         _disabled = environment.IsDevelopment() && configuration["DISABLE_AUTH"] == "true";
     }
@@ -61,6 +64,7 @@ public class SessionAuthMiddleware
             var client = _httpClientFactory.CreateClient("session-check");
             using var request = new HttpRequestMessage(HttpMethod.Post, _checkUrl);
             request.Headers.Add("X-Admin-Session", session);
+            request.Content = JsonContent.Create(new { app = _app });
             using var response = await client.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {

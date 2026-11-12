@@ -21,11 +21,11 @@ En modern webbapplikation för att hantera personliga utgifter med kraftfull AI-
 ## 🔐 Inloggning
 Alla `/api`-anrop kräver inloggning med samma magiska länk via Telegram som admin på jarllindquist.com:
 
-1. Frontend ber n8n (`request-magic-link`) skicka en länk till Telegram och väntar (`check-login-status`) tills den är godkänd.
+1. Frontend ber n8n (`request-magic-link`, med `app: "budget"`) skicka en länk till Telegram och väntar (`check-login-status`) tills den är godkänd. Meddelandet säger att det gäller Budget, och n8n skickar högst en länk per minut.
 2. Sessionen skickas som `X-Admin-Session` med varje anrop.
-3. Backend (`SessionAuthMiddleware`) frågar n8n-webhooken `session-check` om sessionen är giltig, och sparar svaret en minut. Går n8n inte att nå nekas anropet. `/health` är öppen.
+3. Backend (`SessionAuthMiddleware`) frågar n8n-webhooken `session-check` om sessionen är giltig för `budget`, och sparar svaret en minut. En session från ett annat system, till exempel cv-admin, gäller inte här. Går n8n inte att nå nekas anropet. `/health` är öppen.
 
-Webhooken finns i `n8n/session-check-workflow.json` och importeras i n8n. Adressen kan ändras med `SESSION_CHECK_URL`. Lokalt kan kontrollen stängas av med `DISABLE_AUTH=true`, men bara i Development.
+Webhookarna ligger i det gemensamma inloggningsflödet i n8n. Adressen kan ändras med `SESSION_CHECK_URL` och systemnamnet med `SESSION_APP`. Lokalt kan kontrollen stängas av med `DISABLE_AUTH=true`, men bara i Development.
 
 ## 📦 Installation & Setup
 

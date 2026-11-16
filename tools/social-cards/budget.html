@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Budget Tracker card</title>
+  <link rel="stylesheet" href="card.css" />
+</head>
+
+<body>
+  <div class="card">
+    <!-- Budgets per category: how much of each is spent; one is over budget (amber) -->
+    <div class="picture">
+      <svg viewBox="0 0 410 340" aria-hidden="true" font-family="Segoe UI, Arial, sans-serif">
+        <g font-size="24" font-weight="600" fill="#cbd5e1">
+          <text x="6" y="38">Food</text>
+          <text x="6" y="122">Rent</text>
+          <text x="6" y="206">Transport</text>
+          <text x="6" y="290">Fun</text>
+        </g>
+        <g font-size="22" font-weight="600" text-anchor="end">
+          <text x="404" y="38" fill="#94a3b8">72%</text>
+          <text x="404" y="122" fill="#94a3b8">95%</text>
+          <text x="404" y="206" fill="#94a3b8">41%</text>
+          <text x="404" y="290" fill="#fbbf24">112%</text>
+        </g>
+        <!-- The track, then the spent part -->
+        <g fill="#334155">
+          <rect x="6" y="56" width="398" height="26" rx="13" />
+          <rect x="6" y="140" width="398" height="26" rx="13" />
+          <rect x="6" y="224" width="398" height="26" rx="13" />
+          <rect x="6" y="308" width="398" height="26" rx="13" />
+        </g>
+        <rect x="6" y="56" width="287" height="26" rx="13" fill="#38bdf8" />
+        <rect x="6" y="140" width="378" height="26" rx="13" fill="#2dd4bf" />
+        <rect x="6" y="224" width="163" height="26" rx="13" fill="#38bdf8" />
+        <rect x="6" y="308" width="398" height="26" rx="13" fill="#fbbf24" />
+      </svg>
+    </div>
+    <div class="words">
+      <h1>BUDGET TRACKER</h1>
+      <h2>Where the money goes</h2>
+      <p>Expenses, budgets and receipts, sorted into categories by a local AI model.</p>
+      <div class="chips">
+        <span>Budgets</span>
+        <span>Bank CSV import</span>
+        <span>Receipt photos</span>
+        <span>Ollama</span>
+      </div>
+      <div class="site">
+        <img src="../../frontend/react-app/public/money_bag.png" alt="" />
+        budgettracker.jarllindquist.com
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>
